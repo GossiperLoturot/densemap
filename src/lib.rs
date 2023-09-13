@@ -121,13 +121,16 @@ impl<T> DenseMap<T> {
     /// assert!(densemap.contain_key(key));
     /// ```
     pub fn contain_key(&self, key: Key) -> bool {
-        if key.generation & 1 == 0 {
-            if let Some(entry) = self.entries.get(key.idx as usize) {
-                if key.generation == entry.generation {
-                    return true;
-                }
+        if key.generation & 1 != 0 {
+            return false;
+        }
+
+        if let Some(entry) = self.entries.get(key.idx as usize) {
+            if key.generation == entry.generation {
+                return true;
             }
         }
+
         false
     }
 
@@ -156,21 +159,23 @@ impl<T> DenseMap<T> {
                 idx: self.next,
                 generation: entry.generation + 1,
             };
+            self.next = entry.idx_or_next;
             entry.generation += 1;
             entry.idx_or_next = self.values.len() as u32;
             self.keys.push(key);
             self.values.push(value);
-            self.next = entry.idx_or_next;
             key
         } else {
+            let entry = Entry {
+                generation: 0,
+                idx_or_next: self.values.len() as u32,
+            };
             let key = Key {
                 idx: self.entries.len() as u32,
                 generation: 0,
             };
-            self.entries.push(Entry {
-                generation: 0,
-                idx_or_next: self.values.len() as u32,
-            });
+            // self.next += 1;
+            self.entries.push(entry);
             self.keys.push(key);
             self.values.push(value);
             self.next += 1;
@@ -192,22 +197,25 @@ impl<T> DenseMap<T> {
     /// assert_eq!(densemap.remove(key), Some(3));
     /// ```
     pub fn remove(&mut self, key: Key) -> Option<T> {
-        if key.generation & 1 == 0 {
-            if let Some(entry) = self.entries.get_mut(key.idx as usize) {
-                if entry.generation == key.generation {
-                    let idx = entry.idx_or_next;
-                    entry.generation += 1;
-                    entry.idx_or_next = self.next;
-                    self.next = key.idx;
-                    let _ = self.keys.swap_remove(idx as usize);
-                    let value = self.values.swap_remove(idx as usize);
-                    if idx < self.values.len() as u32 {
-                        self.entries[self.keys[idx as usize].idx as usize].idx_or_next = idx;
-                    }
-                    return Some(value);
+        if key.generation & 1 != 0 {
+            return None;
+        }
+
+        if let Some(entry) = self.entries.get_mut(key.idx as usize) {
+            if entry.generation == key.generation {
+                let idx = entry.idx_or_next;
+                entry.generation += 1;
+                entry.idx_or_next = self.next;
+                self.next = key.idx;
+                let _key = self.keys.swap_remove(idx as usize);
+                let value = self.values.swap_remove(idx as usize);
+                if idx < self.values.len() as u32 {
+                    self.entries[self.keys[idx as usize].idx as usize].idx_or_next = idx;
                 }
+                return Some(value);
             }
         }
+
         None
     }
 
@@ -223,13 +231,17 @@ impl<T> DenseMap<T> {
     /// assert_eq!(densemap.get(key), Some(&3));
     /// ```
     pub fn get(&self, key: Key) -> Option<&T> {
-        if key.generation & 1 == 0 {
-            if let Some(entry) = self.entries.get(key.idx as usize) {
-                if key.generation == entry.generation {
-                    return Some(&self.values[entry.idx_or_next as usize]);
-                }
+        if key.generation & 1 != 0 {
+            return None;
+        }
+
+        if let Some(entry) = self.entries.get(key.idx as usize) {
+            if key.generation == entry.generation {
+                let value = self.values.get(entry.idx_or_next as usize).unwrap();
+                return Some(value);
             }
         }
+
         None
     }
 
@@ -250,13 +262,17 @@ impl<T> DenseMap<T> {
     /// assert_eq!(densemap.get(key), Some(&24));
     /// ```
     pub fn get_mut(&mut self, key: Key) -> Option<&mut T> {
-        if key.generation & 1 == 0 {
-            if let Some(entry) = self.entries.get(key.idx as usize) {
-                if key.generation == entry.generation {
-                    return Some(&mut self.values[entry.idx_or_next as usize]);
-                }
+        if key.generation & 1 != 0 {
+            return None;
+        }
+
+        if let Some(entry) = self.entries.get(key.idx as usize) {
+            if key.generation == entry.generation {
+                let value = self.values.get_mut(entry.idx_or_next as usize).unwrap();
+                return Some(value);
             }
         }
+
         None
     }
 
