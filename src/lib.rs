@@ -763,6 +763,31 @@ impl<T> IntoIterator for DenseMap<T> {
     }
 }
 
+impl<T> Extend<T> for DenseMap<T> {
+    #[inline]
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        iter.into_iter().for_each(move |value| {
+            self.insert(value);
+        });
+    }
+}
+
+impl<T> FromIterator<T> for DenseMap<T> {
+    #[inline]
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> DenseMap<T> {
+        let mut densemap = DenseMap::new();
+        densemap.extend(iter);
+        densemap
+    }
+}
+
+impl<T, const N: usize> From<[T; N]> for DenseMap<T> {
+    #[inline]
+    fn from(value: [T; N]) -> DenseMap<T> {
+        Self::from_iter(value)
+    }
+}
+
 /// A draining iterator over the entries of a `DenseMap`.
 ///
 /// This `struct` is created by the [`drain`] method on [`DenseMap`]. See its
