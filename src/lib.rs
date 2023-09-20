@@ -1,4 +1,4 @@
-use std::{fmt, iter, slice, vec};
+use std::{fmt, iter, ops, slice, vec};
 
 /// A key of dense map, represents a position within dense map.
 ///
@@ -16,7 +16,7 @@ use std::{fmt, iter, slice, vec};
 /// let key = densemap.insert(0);
 /// assert_eq!(densemap.get(key), Some(&0));
 /// ```
-#[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Key {
     idx: u32,
     /// An even number means be in occupied mode. An odd number is be in vacant mode.
@@ -29,7 +29,7 @@ pub struct Key {
 /// in vacant mode. Occupied mode means that the correspondence between `idx_or_next` and
 /// the element in dense layer, which is pointed to by `idx_or_next`, are available. Vacant
 /// mode is other than occupied mode.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct SparseIdx {
     /// An even number means be in occupied mode. An odd number is be in vacant mode.
     generation: u32,
@@ -52,7 +52,6 @@ struct SparseIdx {
 ///
 /// For more information see
 /// [Crate documentation](crate).
-#[derive(Default, Clone, Debug)]
 pub struct DenseMap<T> {
     // Sparse layer
     next: u32,
@@ -309,6 +308,7 @@ impl<T> DenseMap<T> {
     /// densemap.insert(3);
     /// densemap.insert(4);
     /// let iter = densemap.drain();
+    #[inline]
     pub fn drain(&mut self) -> Drain<'_, T> {
         self.next = 0;
         self.sparse_idx.clear();
@@ -377,6 +377,7 @@ impl<T> DenseMap<T> {
     /// let key = densemap.insert(3);
     /// assert_eq!(densemap.get(key), Some(&3));
     /// ```
+    #[inline]
     pub fn get(&self, key: Key) -> Option<&T> {
         self.get_key_value(key).map(|(_, value)| value)
     }
@@ -571,6 +572,62 @@ impl<T> DenseMap<T> {
         }
 
         None
+    }
+}
+
+impl<T: Clone> Clone for DenseMap<T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            next: self.next.clone(),
+            sparse_idx: self.sparse_idx.clone(),
+            keys: self.keys.clone(),
+            values: self.values.clone(),
+        }
+    }
+}
+
+impl<T: PartialEq> PartialEq for DenseMap<T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+
+        self.iter()
+            .all(|(key, value)| other.get(*key).map_or(false, |v| *value == *v))
+    }
+}
+
+impl<T: Eq> Eq for DenseMap<T> {}
+
+impl<T: fmt::Debug> fmt::Debug for DenseMap<T> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map().entries(self.iter()).finish()
+    }
+}
+
+impl Default for DenseMap<()> {
+    #[inline]
+    fn default() -> DenseMap<()> {
+        DenseMap::new()
+    }
+}
+
+impl<T> ops::Index<Key> for DenseMap<T> {
+    type Output = T;
+
+    #[inline]
+    fn index(&self, key: Key) -> &T {
+        self.get(key).expect("no entry found for key")
+    }
+}
+
+impl<T> ops::IndexMut<Key> for DenseMap<T> {
+    #[inline]
+    fn index_mut(&mut self, key: Key) -> &mut T {
+        self.get_mut(key).expect("no entry found for key")
     }
 }
 
