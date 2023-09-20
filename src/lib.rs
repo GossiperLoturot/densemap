@@ -1,4 +1,4 @@
-extern crate alloc;
+use std::{fmt, iter, slice, vec};
 
 /// A key of dense map, represents a position within dense map.
 ///
@@ -297,6 +297,27 @@ impl<T> DenseMap<T> {
         self.values.is_empty()
     }
 
+    /// Clears the dense map, removing all key-value pairs as an iterator.
+    /// Keeps the allocated memory for reuse.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// densemap.insert(3);
+    /// densemap.insert(4);
+    /// let iter = densemap.drain();
+    pub fn drain(&mut self) -> Drain<'_, T> {
+        self.next = 0;
+        self.sparse_idx.clear();
+        Drain {
+            inner_keys: self.keys.drain(..),
+            inner_values: self.values.drain(..),
+        }
+    }
+
     /// Clears the dense map, removing all values and index.
     ///
     /// # Examples
@@ -586,6 +607,62 @@ impl<T> IntoIterator for DenseMap<T> {
     }
 }
 
+/// A draining iterator over the entries of a `DenseMap`.
+///
+/// This `struct` is created by the [`drain`] method on [`DenseMap`]. See its
+/// documentation for more.
+///
+/// [`drain`]: DenseMap::drain
+///
+/// # Examples
+///
+/// ```
+/// use densemap::DenseMap;
+///
+/// let mut densemap = DenseMap::new();
+/// densemap.insert(1);
+/// let drain = densemap.drain();
+/// ```
+pub struct Drain<'a, T> {
+    inner_keys: vec::Drain<'a, Key>,
+    inner_values: vec::Drain<'a, T>,
+}
+
+impl<T: fmt::Debug> fmt::Debug for Drain<'_, T> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let keys = self.inner_keys.as_ref().iter();
+        let values = self.inner_values.as_ref().iter();
+        f.debug_list().entries(Iterator::zip(keys, values)).finish()
+    }
+}
+
+impl<'a, T> Iterator for Drain<'a, T> {
+    type Item = (Key, T);
+
+    #[inline]
+    fn next(&mut self) -> Option<(Key, T)> {
+        let key = self.inner_keys.next()?;
+        let value = self.inner_values.next()?;
+        Some((key, value))
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.inner_keys.len();
+        (len, Some(len))
+    }
+}
+
+impl<T> ExactSizeIterator for Drain<'_, T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.inner_keys.len()
+    }
+}
+
+impl<T> iter::FusedIterator for Drain<'_, T> {}
+
 /// An iterator over the keys of a `DenseMap`.
 ///
 /// This `struct` is created by the [`keys`] method on [`DenseMap`]. See its
@@ -603,7 +680,7 @@ impl<T> IntoIterator for DenseMap<T> {
 /// let keys = densemap.keys();
 /// ```
 pub struct Keys<'a> {
-    inner: core::slice::Iter<'a, Key>,
+    inner: slice::Iter<'a, Key>,
 }
 
 impl Clone for Keys<'_> {
@@ -615,9 +692,9 @@ impl Clone for Keys<'_> {
     }
 }
 
-impl core::fmt::Debug for Keys<'_> {
+impl fmt::Debug for Keys<'_> {
     #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.clone()).finish()
     }
 }
@@ -645,7 +722,7 @@ impl ExactSizeIterator for Keys<'_> {
     }
 }
 
-impl core::iter::FusedIterator for Keys<'_> {}
+impl iter::FusedIterator for Keys<'_> {}
 
 /// An owning iterator over the keys of a `DenseMap`.
 ///
@@ -664,13 +741,13 @@ impl core::iter::FusedIterator for Keys<'_> {}
 /// let keys = densemap.into_keys();
 /// ```
 pub struct IntoKeys {
-    inner: alloc::vec::IntoIter<Key>,
+    inner: vec::IntoIter<Key>,
 }
 
-impl core::fmt::Debug for IntoKeys {
+impl fmt::Debug for IntoKeys {
     #[inline]
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_list().entries(self.inner).finish()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.inner.as_ref().iter()).finish()
     }
 }
 
@@ -697,7 +774,7 @@ impl ExactSizeIterator for IntoKeys {
     }
 }
 
-impl core::iter::FusedIterator for IntoKeys {}
+impl iter::FusedIterator for IntoKeys {}
 
 /// An iterator over the values of a `DenseMap`.
 ///
@@ -716,7 +793,7 @@ impl core::iter::FusedIterator for IntoKeys {}
 /// let values = densemap.values();
 /// ```
 pub struct Values<'a, T> {
-    inner: core::slice::Iter<'a, T>,
+    inner: slice::Iter<'a, T>,
 }
 
 impl<T> Clone for Values<'_, T> {
@@ -728,10 +805,10 @@ impl<T> Clone for Values<'_, T> {
     }
 }
 
-impl<T: core::fmt::Debug> core::fmt::Debug for Values<'_, T> {
+impl<T: fmt::Debug> fmt::Debug for Values<'_, T> {
     #[inline]
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_list().entries(self.inner).finish()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.clone()).finish()
     }
 }
 
@@ -758,7 +835,7 @@ impl<T> ExactSizeIterator for Values<'_, T> {
     }
 }
 
-impl<T> core::iter::FusedIterator for Values<'_, T> {}
+impl<T> iter::FusedIterator for Values<'_, T> {}
 
 /// A mutable iterator over the value of a `DenseMap`.
 ///
@@ -777,13 +854,13 @@ impl<T> core::iter::FusedIterator for Values<'_, T> {}
 /// let values = densemap.values_mut();
 /// ```
 pub struct ValuesMut<'a, T> {
-    inner: core::slice::IterMut<'a, T>,
+    inner: slice::IterMut<'a, T>,
 }
 
-impl<T: core::fmt::Debug> core::fmt::Debug for ValuesMut<'_, T> {
+impl<T: fmt::Debug> fmt::Debug for ValuesMut<'_, T> {
     #[inline]
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_list().entries(self.inner).finish()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.inner.as_ref().iter()).finish()
     }
 }
 
@@ -810,7 +887,7 @@ impl<T> ExactSizeIterator for ValuesMut<'_, T> {
     }
 }
 
-impl<T> core::iter::FusedIterator for ValuesMut<'_, T> {}
+impl<T> iter::FusedIterator for ValuesMut<'_, T> {}
 
 /// An owning iterator over the values of a `DenseMap`.
 ///
@@ -829,7 +906,14 @@ impl<T> core::iter::FusedIterator for ValuesMut<'_, T> {}
 /// let values = densemap.into_values();
 /// ```
 pub struct IntoValues<T> {
-    inner: alloc::vec::IntoIter<T>,
+    inner: vec::IntoIter<T>,
+}
+
+impl<T: fmt::Debug> fmt::Debug for IntoValues<T> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.inner.as_ref().iter()).finish()
+    }
 }
 
 impl<T> Iterator for IntoValues<T> {
@@ -855,7 +939,7 @@ impl<T> ExactSizeIterator for IntoValues<T> {
     }
 }
 
-impl<T> core::iter::FusedIterator for IntoValues<T> {}
+impl<T> iter::FusedIterator for IntoValues<T> {}
 
 /// An iterator over the entries of a `DenseMap`.
 ///
@@ -874,8 +958,8 @@ impl<T> core::iter::FusedIterator for IntoValues<T> {}
 /// let iter = densemap.iter();
 /// ```
 pub struct Iter<'a, T> {
-    inner_keys: core::slice::Iter<'a, Key>,
-    inner_values: core::slice::Iter<'a, T>,
+    inner_keys: slice::Iter<'a, Key>,
+    inner_values: slice::Iter<'a, T>,
 }
 
 impl<T> Clone for Iter<'_, T> {
@@ -888,9 +972,9 @@ impl<T> Clone for Iter<'_, T> {
     }
 }
 
-impl<T: core::fmt::Debug> core::fmt::Debug for Iter<'_, T> {
+impl<T: fmt::Debug> fmt::Debug for Iter<'_, T> {
     #[inline]
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.clone()).finish()
     }
 }
@@ -919,7 +1003,7 @@ impl<T> ExactSizeIterator for Iter<'_, T> {
     }
 }
 
-impl<T> core::iter::FusedIterator for Iter<'_, T> {}
+impl<T> iter::FusedIterator for Iter<'_, T> {}
 
 /// A mutable iterator over the entries of a `DenseMap`.
 ///
@@ -938,8 +1022,17 @@ impl<T> core::iter::FusedIterator for Iter<'_, T> {}
 /// let iter = densemap.iter_mut();
 /// ```
 pub struct IterMut<'a, T> {
-    inner_keys: core::slice::Iter<'a, Key>,
-    inner_values: core::slice::IterMut<'a, T>,
+    inner_keys: slice::Iter<'a, Key>,
+    inner_values: slice::IterMut<'a, T>,
+}
+
+impl<T: fmt::Debug> fmt::Debug for IterMut<'_, T> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let keys = self.inner_keys.as_ref().iter();
+        let values = self.inner_values.as_ref().iter();
+        f.debug_list().entries(Iterator::zip(keys, values)).finish()
+    }
 }
 
 impl<'a, T> Iterator for IterMut<'a, T> {
@@ -966,7 +1059,7 @@ impl<T> ExactSizeIterator for IterMut<'_, T> {
     }
 }
 
-impl<T> core::iter::FusedIterator for IterMut<'_, T> {}
+impl<T> iter::FusedIterator for IterMut<'_, T> {}
 
 /// An iterator over the entries of a `DenseMap`, with mutable references to value.
 ///
@@ -985,8 +1078,17 @@ impl<T> core::iter::FusedIterator for IterMut<'_, T> {}
 /// let iter = densemap.into_iter();
 /// ```
 pub struct IntoIter<T> {
-    inner_keys: alloc::vec::IntoIter<Key>,
-    inner_values: alloc::vec::IntoIter<T>,
+    inner_keys: vec::IntoIter<Key>,
+    inner_values: vec::IntoIter<T>,
+}
+
+impl<T: fmt::Debug> fmt::Debug for IntoIter<T> {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let keys = self.inner_keys.as_ref().iter();
+        let values = self.inner_values.as_ref().iter();
+        f.debug_list().entries(Iterator::zip(keys, values)).finish()
+    }
 }
 
 impl<T> Iterator for IntoIter<T> {
@@ -1013,7 +1115,7 @@ impl<T> ExactSizeIterator for IntoIter<T> {
     }
 }
 
-impl<T> core::iter::FusedIterator for IntoIter<T> {}
+impl<T> iter::FusedIterator for IntoIter<T> {}
 
 #[cfg(test)]
 mod test {
