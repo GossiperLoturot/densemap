@@ -1,4 +1,4 @@
-use std::{fmt, iter, ops, slice, vec};
+use std::{collections, fmt, iter, ops, slice, vec};
 
 /// A key of dense map, represents a position within dense map.
 ///
@@ -77,7 +77,7 @@ impl<T> DenseMap<T> {
     /// ```
     #[inline]
     pub fn new() -> DenseMap<T> {
-        DenseMap::with_capacity(0)
+        DenseMap::with_capacity(0, 0)
     }
 
     /// Constructs a new, empty `DenseMap<T>` with at least the specified capacity.
@@ -91,17 +91,18 @@ impl<T> DenseMap<T> {
     /// ```
     /// use densemap::DenseMap;
     ///
-    /// let densemap: DenseMap<i32> = DenseMap::with_capacity(10);
+    /// let densemap: DenseMap<i32> = DenseMap::with_capacity(10, 2);
     /// assert_eq!(densemap.len(), 0);
-    /// assert!(10 <= densemap.capacity());
+    /// let (sparse, dense) = densemap.capacity();
+    /// assert!(10 <= sparse && 2 <= dense);
     /// ```
     #[inline]
-    pub fn with_capacity(capacity: usize) -> DenseMap<T> {
+    pub fn with_capacity(sparse_capacity: usize, dense_capacity: usize) -> DenseMap<T> {
         DenseMap {
             next: 0,
-            sparse_idx: Vec::with_capacity(capacity),
-            keys: Vec::with_capacity(capacity),
-            values: Vec::with_capacity(capacity),
+            sparse_idx: Vec::with_capacity(sparse_capacity),
+            keys: Vec::with_capacity(dense_capacity),
+            values: Vec::with_capacity(dense_capacity),
         }
     }
 
@@ -113,13 +114,111 @@ impl<T> DenseMap<T> {
     /// ```
     /// use densemap::DenseMap;
     ///
-    /// let mut densemap = DenseMap::with_capacity(10);
+    /// let mut densemap = DenseMap::with_capacity(10, 2);
     /// densemap.insert(42);
-    /// assert!(10 <= densemap.capacity());
+    /// let (sparse, dense) = densemap.capacity();
+    /// assert!(10 <= sparse && 2 <= dense);
     /// ```
     #[inline]
-    pub fn capacity(&self) -> usize {
-        self.values.capacity()
+    pub fn capacity(&self) -> (usize, usize) {
+        let sparse = self.sparse_idx.capacity();
+        let dense = self.keys.capacity();
+        (sparse, dense)
+    }
+
+    /// Reserves capacity for at least `additional` more elements to be inserted in the `DenseMap`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity exceeds `isize::MAX`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    /// let mut densemap = DenseMap::new();
+    /// densemap.reserve(10, 2);
+    /// densemap.insert(1);
+    /// ```
+    #[inline]
+    pub fn reserve(&mut self, sparse_additional: usize, dense_additional: usize) {
+        self.sparse_idx.reserve(sparse_additional);
+        self.keys.reserve(dense_additional);
+        self.values.reserve(dense_additional);
+    }
+    /// Tries to reserves capacity for at least `additional` more elements to be inserted
+    /// in the `DenseMap`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity exceeds `isize::MAX`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    /// let mut densemap = DenseMap::new();
+    /// densemap.try_reserve(10, 2).expect("can't reserve capacity");
+    /// densemap.insert(1);
+    /// ```
+    #[inline]
+    pub fn try_reserve(
+        &mut self,
+        sparse_additional: usize,
+        dense_additional: usize,
+    ) -> Result<(), collections::TryReserveError> {
+        self.sparse_idx.try_reserve(sparse_additional)?;
+        self.keys.try_reserve(dense_additional)?;
+        self.values.try_reserve(dense_additional)?;
+        Ok(())
+    }
+
+    /// Shrinks the capacity of the dense map as much as possible.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::with_capacity(100, 100);
+    /// map.insert(3);
+    /// map.insert(4);
+    /// let (sparse, dense) = densemap.capacity();
+    /// assert!(100 <= sparse && 100 <= dense);
+    /// map.shrink_to_fit();
+    /// let (sparse, dense) = densemap.capacity();
+    /// assert!(2 <= sparse && 2 <= dense);
+    /// ```
+    #[inline]
+    pub fn shrink_to_fit(&mut self) {
+        self.sparse_idx.shrink_to_fit();
+        self.keys.shrink_to_fit();
+        self.values.shrink_to_fit();
+    }
+
+    /// Shrinks the capacity of the map with a lower limit.
+    ///
+    /// If the current capacity is less than the lower limit, this is a no-op.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::with_capacity(100, 100);
+    /// map.insert(3);
+    /// map.insert(4);
+    /// let (sparse, dense) = densemap.capacity();
+    /// assert!(100 <= sparse && 100 <= dense);
+    /// map.shrink_to(10);
+    /// let (sparse, dense) = densemap.capacity();
+    /// assert!(10 <= sparse && 10 <= dense);
+    /// ```
+    #[inline]
+    pub fn shrink_to(&mut self, sparse_capacity: usize, dense_capacity: usize) {
+        self.sparse_idx.shrink_to(sparse_capacity);
+        self.keys.shrink_to(dense_capacity);
+        self.values.shrink_to(dense_capacity);
     }
 
     /// An iterator visiting all keys in arbitrary order.
@@ -275,7 +374,7 @@ impl<T> DenseMap<T> {
     /// ```
     #[inline]
     pub fn len(&self) -> usize {
-        self.values.len()
+        self.keys.len()
     }
 
     /// Returns `true` if the dense map contains no elements.
@@ -293,7 +392,7 @@ impl<T> DenseMap<T> {
     /// ```
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
+        self.keys.is_empty()
     }
 
     /// Clears the dense map, removing all key-value pairs as an iterator.
@@ -446,7 +545,7 @@ impl<T> DenseMap<T> {
     ///
     /// # Panics
     ///
-    /// Panics if the new capacity exceeds `isize::MAX` bytes.
+    /// Panics if the new capacity exceeds `isize::MAX`.
     /// Panics if a index or generation of element in the sparse layer exceeds `u32::MAX`.
     ///
     /// # Examples
@@ -469,7 +568,7 @@ impl<T> DenseMap<T> {
     ///
     /// # Panics
     ///
-    /// Panics if the new capacity exceeds `isize::MAX` bytes.
+    /// Panics if the new capacity exceeds `isize::MAX`.
     /// Panics if a index or generation of element in the sparse layer exceeds `u32::MAX`.
     ///
     /// # Examples
