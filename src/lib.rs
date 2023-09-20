@@ -1,3 +1,5 @@
+extern crate alloc;
+
 /// A key of dense map, represents a position within dense map.
 ///
 /// if `generation` is an even number, the key is in occupied mode, otherwise it is
@@ -75,8 +77,8 @@ impl<T> DenseMap<T> {
     /// assert_eq!(densemap.len(), 0);
     /// ```
     #[inline]
-    pub fn new() -> Self {
-        Self::with_capacity(0)
+    pub fn new() -> DenseMap<T> {
+        DenseMap::with_capacity(0)
     }
 
     /// Constructs a new, empty `DenseMap<T>` with at least the specified capacity.
@@ -95,8 +97,8 @@ impl<T> DenseMap<T> {
     /// assert!(10 <= densemap.capacity());
     /// ```
     #[inline]
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
+    pub fn with_capacity(capacity: usize) -> DenseMap<T> {
+        DenseMap {
             next: 0,
             sparse_idx: Vec::with_capacity(capacity),
             keys: Vec::with_capacity(capacity),
@@ -121,11 +123,8 @@ impl<T> DenseMap<T> {
         self.values.capacity()
     }
 
-    /// Returns an iterator that is, one that moves each value out of
-    /// the dense map (from start to end).
-    ///
-    /// Note: Because using contiguous array, it is
-    /// same performance with slice iterator.
+    /// An iterator visiting all keys in arbitrary order.
+    /// The iterator element type is `&'a Key`.
     ///
     /// # Examples
     ///
@@ -133,24 +132,96 @@ impl<T> DenseMap<T> {
     /// use densemap::DenseMap;
     ///
     /// let mut densemap = DenseMap::new();
-    /// densemap.insert(12);
-    /// densemap.insert(34);
-    /// let mut iter = densemap.iter();
-    ///
-    /// assert_eq!(iter.next(), Some(&12));
-    /// assert_eq!(iter.next(), Some(&34));
-    /// assert_eq!(iter.next(), None);
+    /// densemap.insert(1);
+    /// let keys = densemap.keys();
     /// ```
     #[inline]
-    pub fn iter(&self) -> std::slice::Iter<T> {
-        self.values.iter()
+    pub fn keys(&self) -> Keys<'_> {
+        Keys {
+            inner: self.keys.iter(),
+        }
     }
 
-    /// Returns an iterator that is, one that moves each value out of
-    /// the dense map (from start to end), and allow modifying each value.
+    /// Creates a consuming iterator visiting all the keys in arbitrary order.
+    /// The dense map cannot be used after calling this.
+    /// The iterator element type is `Key`.
     ///
-    /// Note: Because using contiguous array, it is
-    /// same performance with slice iterator.
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// densemap.insert(1);
+    /// let keys = densemap.keys();
+    /// ```
+    #[inline]
+    pub fn into_keys(self) -> IntoKeys {
+        IntoKeys {
+            inner: self.keys.into_iter(),
+        }
+    }
+
+    /// An iterator visiting all values in arbitrary order.
+    /// The iterator element type is `&'a T`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// densemap.insert(1);
+    /// let values = densemap.values();
+    /// ```
+    #[inline]
+    pub fn values(&self) -> Values<'_, T> {
+        Values {
+            inner: self.values.iter(),
+        }
+    }
+
+    /// An iterator visiting all values mutably in arbitrary order.
+    /// The iterator element type is `&'a mut T`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// densemap.insert(1);
+    /// let values = densemap.values_mut();
+    /// ```
+    #[inline]
+    pub fn values_mut(&mut self) -> ValuesMut<'_, T> {
+        ValuesMut {
+            inner: self.values.iter_mut(),
+        }
+    }
+
+    /// Creates a consuming iterator visiting all the values in arbitrary order.
+    /// The dense map cannot be used after calling this.
+    /// The iterator element type is `T`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// densemap.insert(1);
+    /// let values = densemap.into_values();
+    /// ```
+    #[inline]
+    pub fn into_values(self) -> IntoValues<T> {
+        IntoValues {
+            inner: self.values.into_iter(),
+        }
+    }
+
+    /// An iterator visiting all key-value pairs in arbitrary order.
+    /// The iterator element type is `(&'a Key, &'a T)`.
     ///
     /// # Examples
     ///
@@ -160,19 +231,36 @@ impl<T> DenseMap<T> {
     /// let mut densemap = DenseMap::new();
     /// densemap.insert(12);
     /// densemap.insert(34);
-    ///
-    /// for value in densemap.iter_mut() {
-    ///     *value += 2;
-    /// }
-    ///
     /// let mut iter = densemap.iter();
-    /// assert_eq!(iter.next(), Some(&14));
-    /// assert_eq!(iter.next(), Some(&36));
-    /// assert_eq!(iter.next(), None);
     /// ```
     #[inline]
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<T> {
-        self.values.iter_mut()
+    pub fn iter(&self) -> Iter<'_, T> {
+        Iter {
+            inner_keys: self.keys.iter(),
+            inner_values: self.values.iter(),
+        }
+    }
+
+    /// An iterator visiting all key-value pairs in arbitrary order,
+    /// with mutable references to the values.
+    /// The iterator element type is `(&'a Key, &'a mut T)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// densemap.insert(12);
+    /// densemap.insert(34);
+    /// let mut iter = densemap.iter();
+    /// ```
+    #[inline]
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+        IterMut {
+            inner_keys: self.keys.iter(),
+            inner_values: self.values.iter_mut(),
+        }
     }
 
     /// Returns the number of elements in the dense map.
@@ -229,9 +317,110 @@ impl<T> DenseMap<T> {
         self.values.clear();
     }
 
-    /// Inserts an element to the back of collection and returns key as stable identity.
+    /// Returns `true` if the dense map contains a value for the specified key.
     ///
-    /// Note that this method is a performance of *O*(*1*).
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// assert!(densemap.is_empty());
+    ///
+    /// let key = densemap.insert(1);
+    /// assert!(densemap.contain_key(key));
+    /// ```
+    pub fn contain_key(&self, key: Key) -> bool {
+        // skip vacant mode
+        if key.generation & 1 != 0 {
+            return false;
+        }
+
+        if let Some(entry) = self.sparse_idx.get(key.idx as usize) {
+            if key.generation == entry.generation {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Returns a reference to the value corresponding to the key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// let key = densemap.insert(3);
+    /// assert_eq!(densemap.get(key), Some(&3));
+    /// ```
+    pub fn get(&self, key: Key) -> Option<&T> {
+        self.get_key_value(key).map(|(_, value)| value)
+    }
+
+    /// Returns a reference to the value corresponding to the key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// let key = densemap.insert(3);
+    /// let (key, value) = densemap.get_key_value(key).unwrap();
+    /// ```
+    pub fn get_key_value(&self, key: Key) -> Option<(&Key, &T)> {
+        // skip vacant mode
+        if key.generation & 1 != 0 {
+            return None;
+        }
+
+        if let Some(entry) = self.sparse_idx.get(key.idx as usize) {
+            if key.generation == entry.generation {
+                let key = &self.keys[entry.idx_or_next as usize];
+                let value = &self.values[entry.idx_or_next as usize];
+                return Some((key, value));
+            }
+        }
+
+        None
+    }
+
+    /// Returns a mutable reference to the value corresponding to the key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// let key = densemap.insert(3);
+    ///
+    /// if let Some(value) = densemap.get_mut(key) {
+    ///     *value = 24;
+    /// }
+    ///
+    /// assert_eq!(densemap.get(key), Some(&24));
+    /// ```
+    pub fn get_mut(&mut self, key: Key) -> Option<&mut T> {
+        // skip vacant mode
+        if key.generation & 1 != 0 {
+            return None;
+        }
+
+        if let Some(entry) = self.sparse_idx.get(key.idx as usize) {
+            if key.generation == entry.generation {
+                let value = &mut self.values[entry.idx_or_next as usize];
+                return Some(value);
+            }
+        }
+
+        None
+    }
+
+    /// Inserts an element to the back of collection and returns key as stable identity.
     ///
     /// # Panics
     ///
@@ -255,8 +444,6 @@ impl<T> DenseMap<T> {
     /// Inserts a value given by `f` into the map. The key where the
     /// value will be stored is passed into `f`. This is useful to store value
     /// that contain their own key.
-    ///
-    /// Note that this method is a performance of *O*(*1*).
     ///
     /// # Panics
     ///
@@ -312,10 +499,8 @@ impl<T> DenseMap<T> {
         }
     }
 
-    /// Removes and returns the element at position `key`. Returns `None`, if `key` is no
-    /// available.
-    ///
-    /// Note that this method is a performance of *O*(*1*).
+    /// Removes a key from the map, returning the value
+    /// at the key if the key was previously in the map.
     ///
     /// # Examples
     ///
@@ -326,7 +511,24 @@ impl<T> DenseMap<T> {
     /// let key = densemap.insert(3);
     /// assert_eq!(densemap.remove(key), Some(3));
     /// ```
+    #[inline]
     pub fn remove(&mut self, key: Key) -> Option<T> {
+        self.remove_entry(key).map(|(_, value)| value)
+    }
+
+    /// Removes a key from the dense map, returning the stored key
+    /// and value if the key was previously in the dense map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// let key = densemap.insert(3);
+    /// let (key, value) = densemap.remove_entry(key).unwrap();
+    /// ```
+    pub fn remove_entry(&mut self, key: Key) -> Option<(Key, T)> {
         // skip vacant mode
         if key.generation & 1 != 0 {
             return None;
@@ -338,108 +540,480 @@ impl<T> DenseMap<T> {
                 entry.generation += 1;
                 entry.idx_or_next = self.next;
                 self.next = key.idx;
-                let _key = self.keys.swap_remove(idx as usize);
+                let key = self.keys.swap_remove(idx as usize);
                 let value = self.values.swap_remove(idx as usize);
                 if idx < self.values.len() as u32 {
                     self.sparse_idx[self.keys[idx as usize].idx as usize].idx_or_next = idx;
                 }
-                return Some(value);
-            }
-        }
-
-        None
-    }
-
-    /// Returns `true` if the dense map contains elements at position `key`
-    /// within the dense map.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use densemap::DenseMap;
-    ///
-    /// let mut densemap = DenseMap::new();
-    /// assert!(densemap.is_empty());
-    ///
-    /// let key = densemap.insert(1);
-    /// assert!(densemap.contain_key(key));
-    /// ```
-    pub fn contain_key(&self, key: Key) -> bool {
-        // skip vacant mode
-        if key.generation & 1 != 0 {
-            return false;
-        }
-
-        if let Some(entry) = self.sparse_idx.get(key.idx as usize) {
-            if key.generation == entry.generation {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    /// Returns a reference to the value at position `key`. Returns `None`, if `key` is no
-    /// available.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use densemap::DenseMap;
-    ///
-    /// let mut densemap = DenseMap::new();
-    /// let key = densemap.insert(3);
-    /// assert_eq!(densemap.get(key), Some(&3));
-    /// ```
-    pub fn get(&self, key: Key) -> Option<&T> {
-        // skip vacant mode
-        if key.generation & 1 != 0 {
-            return None;
-        }
-
-        if let Some(entry) = self.sparse_idx.get(key.idx as usize) {
-            if key.generation == entry.generation {
-                let value = self.values.get(entry.idx_or_next as usize).unwrap();
-                return Some(value);
-            }
-        }
-
-        None
-    }
-
-    /// Returns a mutable reference to the value at position `key`. Returns `None`, if `key` is no
-    /// available.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use densemap::DenseMap;
-    ///
-    /// let mut densemap = DenseMap::new();
-    /// let key = densemap.insert(3);
-    ///
-    /// if let Some(value) = densemap.get_mut(key) {
-    ///     *value = 24;
-    /// }
-    ///
-    /// assert_eq!(densemap.get(key), Some(&24));
-    /// ```
-    pub fn get_mut(&mut self, key: Key) -> Option<&mut T> {
-        // skip vacant mode
-        if key.generation & 1 != 0 {
-            return None;
-        }
-
-        if let Some(entry) = self.sparse_idx.get(key.idx as usize) {
-            if key.generation == entry.generation {
-                let value = self.values.get_mut(entry.idx_or_next as usize).unwrap();
-                return Some(value);
+                return Some((key, value));
             }
         }
 
         None
     }
 }
+
+impl<'a, T> IntoIterator for &'a DenseMap<T> {
+    type Item = (&'a Key, &'a T);
+    type IntoIter = Iter<'a, T>;
+
+    #[inline]
+    fn into_iter(self) -> Iter<'a, T> {
+        self.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut DenseMap<T> {
+    type Item = (&'a Key, &'a mut T);
+    type IntoIter = IterMut<'a, T>;
+
+    #[inline]
+    fn into_iter(self) -> IterMut<'a, T> {
+        self.iter_mut()
+    }
+}
+
+impl<T> IntoIterator for DenseMap<T> {
+    type Item = (Key, T);
+    type IntoIter = IntoIter<T>;
+
+    #[inline]
+    fn into_iter(self) -> IntoIter<T> {
+        IntoIter {
+            inner_keys: self.keys.into_iter(),
+            inner_values: self.values.into_iter(),
+        }
+    }
+}
+
+/// An iterator over the keys of a `DenseMap`.
+///
+/// This `struct` is created by the [`keys`] method on [`DenseMap`]. See its
+/// documentation for more.
+///
+/// [`keys`]: DenseMap::keys
+///
+/// # Example
+///
+/// ```
+/// use densemap::DenseMap;
+///
+/// let mut densemap = DenseMap::new();
+/// densemap.insert(1);
+/// let keys = densemap.keys();
+/// ```
+pub struct Keys<'a> {
+    inner: core::slice::Iter<'a, Key>,
+}
+
+impl Clone for Keys<'_> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Keys {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl core::fmt::Debug for Keys<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.clone()).finish()
+    }
+}
+
+impl<'a> Iterator for Keys<'a> {
+    type Item = &'a Key;
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a Key> {
+        let key = self.inner.next()?;
+        Some(key)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.inner.len();
+        (len, Some(len))
+    }
+}
+
+impl ExactSizeIterator for Keys<'_> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl core::iter::FusedIterator for Keys<'_> {}
+
+/// An owning iterator over the keys of a `DenseMap`.
+///
+/// This `struct` is created by the [`into_keys`] method on [`DenseMap`]. See its
+/// documentation for more.
+///
+/// [`into_keys`]: DenseMap::into_keys
+///
+/// # Example
+///
+/// ```
+/// use densemap::DenseMap;
+///
+/// let mut densemap = DenseMap::new();
+/// densemap.insert(1);
+/// let keys = densemap.into_keys();
+/// ```
+pub struct IntoKeys {
+    inner: alloc::vec::IntoIter<Key>,
+}
+
+impl core::fmt::Debug for IntoKeys {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self.inner).finish()
+    }
+}
+
+impl Iterator for IntoKeys {
+    type Item = Key;
+
+    #[inline]
+    fn next(&mut self) -> Option<Key> {
+        let key = self.inner.next()?;
+        Some(key)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.inner.len();
+        (len, Some(len))
+    }
+}
+
+impl ExactSizeIterator for IntoKeys {
+    #[inline]
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl core::iter::FusedIterator for IntoKeys {}
+
+/// An iterator over the values of a `DenseMap`.
+///
+/// This `struct` is created by the [`values`] method on [`DenseMap`]. See its
+/// documentation for more.
+///
+/// [`values`]: DenseMap::values
+///
+/// # Example
+///
+/// ```
+/// use densemap::DenseMap;
+///
+/// let mut densemap = DenseMap::new();
+/// densemap.insert(1);
+/// let values = densemap.values();
+/// ```
+pub struct Values<'a, T> {
+    inner: core::slice::Iter<'a, T>,
+}
+
+impl<T> Clone for Values<'_, T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Values {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl<T: core::fmt::Debug> core::fmt::Debug for Values<'_, T> {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self.inner).finish()
+    }
+}
+
+impl<'a, T> Iterator for Values<'a, T> {
+    type Item = &'a T;
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a T> {
+        let value = self.inner.next()?;
+        Some(value)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.inner.len();
+        (len, Some(len))
+    }
+}
+
+impl<T> ExactSizeIterator for Values<'_, T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl<T> core::iter::FusedIterator for Values<'_, T> {}
+
+/// A mutable iterator over the value of a `DenseMap`.
+///
+/// This `struct` is created by the [`values_mut`] method on [`DenseMap`]. See its
+/// documentation for more.
+///
+/// [`values_mut`]: DenseMap::values_mut
+///
+/// # Example
+///
+/// ```
+/// use densemap::DenseMap;
+///
+/// let mut densemap = DenseMap::new();
+/// densemap.insert(1);
+/// let values = densemap.values_mut();
+/// ```
+pub struct ValuesMut<'a, T> {
+    inner: core::slice::IterMut<'a, T>,
+}
+
+impl<T: core::fmt::Debug> core::fmt::Debug for ValuesMut<'_, T> {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self.inner).finish()
+    }
+}
+
+impl<'a, T> Iterator for ValuesMut<'a, T> {
+    type Item = &'a mut T;
+
+    #[inline]
+    fn next(&mut self) -> Option<&'a mut T> {
+        let value = self.inner.next()?;
+        Some(value)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.inner.len();
+        (len, Some(len))
+    }
+}
+
+impl<T> ExactSizeIterator for ValuesMut<'_, T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl<T> core::iter::FusedIterator for ValuesMut<'_, T> {}
+
+/// An owning iterator over the values of a `DenseMap`.
+///
+/// This `struct` is created by the [`into_values`] method on [`DenseMap`]. See its
+/// documentation for more.
+///
+/// [`into_values`]: DenseMap::into_values
+///
+/// # Example
+///
+/// ```
+/// use densemap::DenseMap;
+///
+/// let mut densemap = DenseMap::new();
+/// densemap.insert(1);
+/// let values = densemap.into_values();
+/// ```
+pub struct IntoValues<T> {
+    inner: alloc::vec::IntoIter<T>,
+}
+
+impl<T> Iterator for IntoValues<T> {
+    type Item = T;
+
+    #[inline]
+    fn next(&mut self) -> Option<T> {
+        let value = self.inner.next()?;
+        Some(value)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.inner.len();
+        (len, Some(len))
+    }
+}
+
+impl<T> ExactSizeIterator for IntoValues<T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl<T> core::iter::FusedIterator for IntoValues<T> {}
+
+/// An iterator over the entries of a `DenseMap`.
+///
+/// This `struct` is created by the [`iter`] method on [`DenseMap`]. See its
+/// documentation for more.
+///
+/// [`iter`]: DenseMap::iter
+///
+/// # Example
+///
+/// ```
+/// use densemap::DenseMap;
+///
+/// let mut densemap = DenseMap::new();
+/// densemap.insert(1);
+/// let iter = densemap.iter();
+/// ```
+pub struct Iter<'a, T> {
+    inner_keys: core::slice::Iter<'a, Key>,
+    inner_values: core::slice::Iter<'a, T>,
+}
+
+impl<T> Clone for Iter<'_, T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Iter {
+            inner_keys: self.inner_keys.clone(),
+            inner_values: self.inner_values.clone(),
+        }
+    }
+}
+
+impl<T: core::fmt::Debug> core::fmt::Debug for Iter<'_, T> {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self.clone()).finish()
+    }
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = (&'a Key, &'a T);
+
+    #[inline]
+    fn next(&mut self) -> Option<(&'a Key, &'a T)> {
+        let key = self.inner_keys.next()?;
+        let value = self.inner_values.next()?;
+        Some((key, value))
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.inner_keys.len();
+        (len, Some(len))
+    }
+}
+
+impl<T> ExactSizeIterator for Iter<'_, T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.inner_keys.len()
+    }
+}
+
+impl<T> core::iter::FusedIterator for Iter<'_, T> {}
+
+/// A mutable iterator over the entries of a `DenseMap`.
+///
+/// This `struct` is created by the [`iter_mut`] method on [`DenseMap`]. See its
+/// documentation for more.
+///
+/// [`iter_mut`]: DenseMap::iter_mut
+///
+/// # Example
+///
+/// ```
+/// use densemap::DenseMap;
+///
+/// let mut densemap = DenseMap::new();
+/// densemap.insert(1);
+/// let iter = densemap.iter_mut();
+/// ```
+pub struct IterMut<'a, T> {
+    inner_keys: core::slice::Iter<'a, Key>,
+    inner_values: core::slice::IterMut<'a, T>,
+}
+
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = (&'a Key, &'a mut T);
+
+    #[inline]
+    fn next(&mut self) -> Option<(&'a Key, &'a mut T)> {
+        let key = self.inner_keys.next()?;
+        let value = self.inner_values.next()?;
+        Some((key, value))
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.inner_keys.len();
+        (len, Some(len))
+    }
+}
+
+impl<T> ExactSizeIterator for IterMut<'_, T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.inner_keys.len()
+    }
+}
+
+impl<T> core::iter::FusedIterator for IterMut<'_, T> {}
+
+/// An iterator over the entries of a `DenseMap`, with mutable references to value.
+///
+/// This `struct` is created by the [`into_iter`] method on [`DenseMap`]. See its
+/// documentation for more.
+///
+/// [`into_iter`]: DenseMap::into_iter
+///
+/// # Example
+///
+/// ```
+/// use densemap::DenseMap;
+///
+/// let mut densemap = DenseMap::new();
+/// densemap.insert(1);
+/// let iter = densemap.into_iter();
+/// ```
+pub struct IntoIter<T> {
+    inner_keys: alloc::vec::IntoIter<Key>,
+    inner_values: alloc::vec::IntoIter<T>,
+}
+
+impl<T> Iterator for IntoIter<T> {
+    type Item = (Key, T);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let key = self.inner_keys.next()?;
+        let value = self.inner_values.next()?;
+        Some((key, value))
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.inner_keys.len();
+        (len, Some(len))
+    }
+}
+
+impl<T> ExactSizeIterator for IntoIter<T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.inner_keys.len()
+    }
+}
+
+impl<T> core::iter::FusedIterator for IntoIter<T> {}
 
 #[cfg(test)]
 mod test {
