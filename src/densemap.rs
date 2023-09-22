@@ -1,11 +1,6 @@
 use std::{collections, fmt, iter, ops, slice, vec};
 
-/// A key of dense map, represents a position within dense map.
-///
-/// if `generation` is an even number, the key is in occupied mode, otherwise it is
-/// in vacant mode. Occupied mode means that the correspondence between `idx` and
-/// the element in dense layer, which is pointed to by `idx`, are available. Vacant
-/// mode is other than occupied mode.
+/// A key of dense map, represents a position within the dense map.
 ///
 /// # Examples
 ///
@@ -18,12 +13,13 @@ use std::{collections, fmt, iter, ops, slice, vec};
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
 pub struct Key {
-    idx: u32,
-    /// An even number means be in occupied mode. An odd number is be in vacant mode.
+    /// An even number means occupied. An odd number means vacant.
     generation: u32,
+    /// An index of sparse layer.
+    idx: u32,
 }
 
-/// A key in sparse layer, represents an index into dense layer.
+/// An index of sparse layer and mode at the position.
 ///
 /// if `generation` is an even number, the key is in occupied mode, otherwise it is
 /// in vacant mode. Occupied mode means that the correspondence between `idx_or_next` and
@@ -31,10 +27,10 @@ pub struct Key {
 /// mode is other than occupied mode.
 #[derive(Clone)]
 struct SparseIdx {
-    /// An even number means be in occupied mode. An odd number is be in vacant mode.
+    /// An even number means be in occupied mode. An odd number means be in vacant mode.
     generation: u32,
-    /// In occupied mode, an index point to an element in dense layer. In vacant mode,
-    /// a next free position in sparse layer.
+    /// In occupied mode, an index of dense layer. In vacant mode,
+    /// a next free index of sparse layer.
     idx_or_next: u32,
 }
 
@@ -53,11 +49,12 @@ struct SparseIdx {
 /// For more information see
 /// [Crate documentation](crate).
 pub struct DenseMap<T> {
-    // Sparse layer
+    /// A next free index of sparse layer.
     next: u32,
+    /// A correspondence to dense layer from sparse layer.
     sparse_idx: Vec<SparseIdx>,
 
-    // Dense layer
+    /// A correspondence to sparse layer from dense layer.
     keys: Vec<Key>,
     values: Vec<T>,
 }
@@ -590,8 +587,8 @@ impl<T> DenseMap<T> {
                 panic!("A generation of element in the sparse layer overflow");
             }
             let key = Key {
-                idx: self.next,
                 generation: entry.generation + 1,
+                idx: self.next,
             };
             self.next = entry.idx_or_next;
             entry.generation += 1;
@@ -608,8 +605,8 @@ impl<T> DenseMap<T> {
                 idx_or_next: self.values.len() as u32,
             };
             let key = Key {
-                idx: self.sparse_idx.len() as u32,
                 generation: 0,
+                idx: self.sparse_idx.len() as u32,
             };
             // self.next += 1; // slower than below increment
             self.sparse_idx.push(entry);
