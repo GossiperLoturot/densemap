@@ -3,6 +3,8 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/GossiperLoturot/densemap)
 ![GitHub](https://img.shields.io/github/license/GossiperLoturot/densemap)
 
+[**Documentation**](https://docs.rs/densemap)
+
 This library provides a collection `DenseMap` that are permanently accessible by unique keys and fast
 iterable. A key is generated upon insertion and can be used to access any element. Inserts,
 removes, and gets run in constant time, and iteration has the same performance as `Vec`. Also
@@ -55,3 +57,7 @@ below table. The results are measured by using `criterion` on WSL.
 | slotmap::HopSlotMap | 46.897μs | 126.29μs | 67.884μs | 24.349μs |
 | slotmap::DenseSlotMap | 63.195μs | 62.308μs | 67.072μs | 5.2833μs |
 | densemap::DenseMap | 40.357μs | 24.969μs | 47.280μs | 3.6269μs |
+
+# License
+
+This library is licensed under the [MIT license](LICENSE).

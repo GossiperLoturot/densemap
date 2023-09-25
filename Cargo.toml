@@ -1,7 +1,14 @@
 [package]
 name = "densemap"
-version = "0.1.0"
+version = "0.1.1"
+authors = ["GossiperLoturot"]
 edition = "2021"
+description = "A collection data structure that is permanently accessible by unique keys and fast iterable."
+readme = "README.md"
+repository = "https://github.com/GossiperLoturot/densemap"
+license = "MIT"
+keywords = ["storage"]
+categories = ["data-structures"]
 
 [dev-dependencies.criterion]
 version = "0.5"
