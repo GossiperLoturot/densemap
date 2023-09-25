@@ -3,24 +3,24 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 fn insertion(c: &mut Criterion) {
     let mut g = c.benchmark_group("insertion");
     g.bench_function("vec", |b| {
-        let mut vec = vec![];
         b.iter(|| {
+            let mut vec = vec![];
             for _ in 0..10000 {
                 vec.push(black_box(0));
             }
         });
     });
     g.bench_function("hashmap", |b| {
-        let mut hashmap = std::collections::HashMap::new();
         b.iter(|| {
+            let mut hashmap = std::collections::HashMap::new();
             for i in 0..10000 {
                 hashmap.insert(i, black_box(0));
             }
         });
     });
     g.bench_function("slab", |b| {
-        let mut slab = slab::Slab::new();
         b.iter(|| {
+            let mut slab = slab::Slab::new();
             for _ in 0..10000 {
                 let key = slab.insert(black_box(0));
                 black_box(key);
@@ -28,8 +28,8 @@ fn insertion(c: &mut Criterion) {
         });
     });
     g.bench_function("slotmap", |b| {
-        let mut slotmap = slotmap::SlotMap::new();
         b.iter(|| {
+            let mut slotmap = slotmap::SlotMap::new();
             for _ in 0..10000 {
                 let key = slotmap.insert(black_box(0));
                 black_box(key);
@@ -37,8 +37,8 @@ fn insertion(c: &mut Criterion) {
         });
     });
     g.bench_function("hop slotmap", |b| {
-        let mut slotmap = slotmap::HopSlotMap::new();
         b.iter(|| {
+            let mut slotmap = slotmap::HopSlotMap::new();
             for _ in 0..10000 {
                 let key = slotmap.insert(black_box(0));
                 black_box(key);
@@ -46,8 +46,8 @@ fn insertion(c: &mut Criterion) {
         });
     });
     g.bench_function("dense slotmap", |b| {
-        let mut slotmap = slotmap::DenseSlotMap::new();
         b.iter(|| {
+            let mut slotmap = slotmap::DenseSlotMap::new();
             for _ in 0..10000 {
                 let key = slotmap.insert(black_box(0));
                 black_box(key);
@@ -55,8 +55,8 @@ fn insertion(c: &mut Criterion) {
         });
     });
     g.bench_function("densemap", |b| {
-        let mut densemap = densemap::DenseMap::new();
         b.iter(|| {
+            let mut densemap = densemap::DenseMap::new();
             for _ in 0..10000 {
                 let key = densemap.insert(black_box(0));
                 black_box(key);
