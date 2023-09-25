@@ -46,12 +46,12 @@ The performance measurement results for inserts, removes, reinserts, and iterate
 collections of `std-1.72.1`. `slab-0.4.9`, `slotmap-1.0.6`, and `densemap-0.1.0` are shown
 below table. The results are measured by using `criterion` on WSL.
 
-| collection | inserts | removes | reinserts | iterates |
-|:----------:|:-------:|:-------:|:---------:|:--------:|
-| std::vec::Vec | 21.322μs | 7.0338μs | 10.438μs | 3.6754μs |
-| std::collections::HashMap | 147.45μs | 187.99μs | 174.97μs | 14.617μs |
-| slab::Slab | 39.210μs | 17.952μs | 26.207μs | 4.9409μs |
-| slotmap::SlotMap | 58.370μs | 29.594μs | 48.153μs | 22.566μs |
-| slotmap::HopSlotMap | 73.886μs | 126.29μs | 67.884μs | 24.349μs |
-| slotmap::DenseSlotMap | 97.762μs | 62.308μs | 67.072μs | 5.2833μs |
-| densemap::DenseMap | 78.764μs | 24.969μs | 47.280μs | 3.6269μs |
+| collection | insertion | removal | reinsertion | iteration |
+|:----------:|:---------:|:-------:|:-----------:|:---------:|
+| std::vec::Vec | 16.367 | 7.0338μs | 10.438μs | 3.6754μs |
+| std::collections::HashMap | 351.25μs | 187.99μs | 174.97μs | 14.617μs |
+| slab::Slab | 17.728μs | 17.952μs | 26.207μs | 4.9409μs |
+| slotmap::SlotMap | 49.043μs | 29.594μs | 48.153μs | 22.566μs |
+| slotmap::HopSlotMap | 46.897μs | 126.29μs | 67.884μs | 24.349μs |
+| slotmap::DenseSlotMap | 63.195μs | 62.308μs | 67.072μs | 5.2833μs |
+| densemap::DenseMap | 40.357μs | 24.969μs | 47.280μs | 3.6269μs |
