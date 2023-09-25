@@ -75,8 +75,13 @@ impl<T> DenseMap<T> {
     /// assert_eq!(densemap.len(), 0);
     /// ```
     #[inline]
-    pub fn new() -> DenseMap<T> {
-        DenseMap::with_capacity(0, 0)
+    pub const fn new() -> DenseMap<T> {
+        DenseMap {
+            next: 0,
+            sparse_idx: Vec::new(),
+            keys: Vec::new(),
+            values: Vec::new(),
+        }
     }
 
     /// Constructs a new, empty `DenseMap<T>` with at least the specified capacity.
