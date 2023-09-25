@@ -11,7 +11,8 @@ use std::{collections, fmt, iter, ops, slice, vec};
 /// let key = densemap.insert(0);
 /// assert_eq!(densemap.get(key), Some(&0));
 /// ```
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
+#[repr(align(8))]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct Key {
     /// An even number means occupied. An odd number means vacant.
     generation: u32,
@@ -25,6 +26,7 @@ pub struct Key {
 /// in vacant mode. Occupied mode means that the correspondence between `idx_or_next` and
 /// the element in dense layer, which is pointed to by `idx_or_next`, are available. Vacant
 /// mode is other than occupied mode.
+#[repr(align(8))]
 #[derive(Clone)]
 struct SparseIdx {
     /// An even number means be in occupied mode. An odd number means be in vacant mode.
@@ -448,11 +450,6 @@ impl<T> DenseMap<T> {
     /// assert!(densemap.contain_key(key));
     /// ```
     pub fn contain_key(&self, key: Key) -> bool {
-        // skip vacant mode
-        if key.generation & 1 != 0 {
-            return false;
-        }
-
         if let Some(entry) = self.sparse_idx.get(key.idx as usize) {
             if key.generation == entry.generation {
                 return true;
@@ -490,11 +487,6 @@ impl<T> DenseMap<T> {
     /// let (key, value) = densemap.get_key_value(key).unwrap();
     /// ```
     pub fn get_key_value(&self, key: Key) -> Option<(&Key, &T)> {
-        // skip vacant mode
-        if key.generation & 1 != 0 {
-            return None;
-        }
-
         if let Some(entry) = self.sparse_idx.get(key.idx as usize) {
             if key.generation == entry.generation {
                 let key = &self.keys[entry.idx_or_next as usize];
@@ -523,11 +515,6 @@ impl<T> DenseMap<T> {
     /// assert_eq!(densemap.get(key), Some(&24));
     /// ```
     pub fn get_mut(&mut self, key: Key) -> Option<&mut T> {
-        // skip vacant mode
-        if key.generation & 1 != 0 {
-            return None;
-        }
-
         if let Some(entry) = self.sparse_idx.get(key.idx as usize) {
             if key.generation == entry.generation {
                 let value = &mut self.values[entry.idx_or_next as usize];
@@ -647,11 +634,6 @@ impl<T> DenseMap<T> {
     /// let (key, value) = densemap.remove_entry(key).unwrap();
     /// ```
     pub fn remove_entry(&mut self, key: Key) -> Option<(Key, T)> {
-        // skip vacant mode
-        if key.generation & 1 != 0 {
-            return None;
-        }
-
         if let Some(entry) = self.sparse_idx.get_mut(key.idx as usize) {
             if entry.generation == key.generation {
                 let idx = entry.idx_or_next;
