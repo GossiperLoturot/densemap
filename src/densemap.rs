@@ -17,6 +17,7 @@ use core::{fmt, iter, ops, slice};
 /// ```
 #[repr(align(8))]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Key {
     /// An even number means occupied. An odd number means vacant.
     generation: u32,
@@ -32,6 +33,7 @@ pub struct Key {
 /// mode is other than occupied mode.
 #[repr(align(8))]
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct SparseIdx {
     /// An even number means be in occupied mode. An odd number means be in vacant mode.
     generation: u32,
@@ -54,6 +56,7 @@ struct SparseIdx {
 ///
 /// For more information see
 /// [Crate documentation](crate).
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DenseMap<T> {
     /// A next free index of sparse layer.
     next: u32,
