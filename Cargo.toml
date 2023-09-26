@@ -11,9 +11,6 @@ keywords = ["allocator", "storage", "no_std"]
 categories = ["memory-management", "data-structures", "no-std"]
 
 [features]
-default = []
-
-[features]
 default = ["std"]
 std = []
 
