@@ -55,8 +55,5 @@
 
 pub mod densemap;
 
-#[cfg(test)]
-mod test;
-
 #[doc(inline)]
 pub use densemap::{DenseMap, Key};
