@@ -1,4 +1,4 @@
-use crate::DenseMap;
+use densemap::DenseMap;
 
 #[test]
 fn test_new() {
