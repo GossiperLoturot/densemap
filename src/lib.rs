@@ -43,8 +43,8 @@
 //! collections of `std-1.72.1`. `slab-0.4.9`, `slotmap-1.0.6`, and `densemap-0.1.0` are shown
 //! below table. The results are measured by using `criterion` on WSL.
 //!
-//! | collection | inserts | removes | reinserts | iterates |
-//! |:----------:|:-------:|:-------:|:---------:|:--------:|
+//! | collection | insertion | removal | reinsertion | iteration |
+//! |:----------:|:---------:|:-------:|:-----------:|:---------:|
 //! | std::vec::Vec | 16.367 | 7.0338μs | 10.438μs | 3.6754μs |
 //! | std::collections::HashMap | 351.25μs | 187.99μs | 174.97μs | 14.617μs |
 //! | slab::Slab | 17.728μs | 17.952μs | 26.207μs | 4.9409μs |
@@ -59,5 +59,4 @@ extern crate alloc;
 
 pub mod densemap;
 
-#[doc(inline)]
 pub use densemap::{DenseMap, Key};

@@ -1,7 +1,7 @@
 # densemap
 
-![GitHub release (latest by date)](https://img.shields.io/github/v/release/GossiperLoturot/densemap)
-![GitHub](https://img.shields.io/github/license/GossiperLoturot/densemap)
+![Crates.io](https://img.shields.io/crates/v/densemap)
+![Crates.io](https://img.shields.io/crates/l/densemap)
 
 [**Documentation**](https://docs.rs/densemap)
 
