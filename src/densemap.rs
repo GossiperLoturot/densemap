@@ -271,6 +271,22 @@ impl<T> DenseMap<T> {
         }
     }
 
+    /// Extracts a slice containing the entire keys.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// densemap.insert(1);
+    /// let key = densemap.as_key_slice();
+    /// ```
+    #[inline]
+    pub fn as_key_slice(&self) -> &[Key] {
+        self.keys.as_slice()
+    }
+
     /// An iterator visiting all values in arbitrary order.
     /// The iterator element type is `&'a T`.
     ///
@@ -327,6 +343,38 @@ impl<T> DenseMap<T> {
         IntoValues {
             inner: self.values.into_iter(),
         }
+    }
+
+    /// Extracts a slice containing the entire value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// densemap.insert(1);
+    /// let key = densemap.as_value_slice();
+    /// ```
+    #[inline]
+    pub fn as_value_slice(&self) -> &[T] {
+        self.values.as_slice()
+    }
+
+    /// Extracts a mutable slice of the entire value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// densemap.insert(1);
+    /// let key = densemap.as_value_slice();
+    /// ```
+    #[inline]
+    pub fn as_value_mut_slice(&mut self) -> &mut [T] {
+        self.values.as_mut_slice()
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order.

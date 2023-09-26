@@ -85,6 +85,24 @@ fn test_len_and_is_empty() {
 }
 
 #[test]
+fn test_slice() {
+    let mut densemap = DenseMap::new();
+    let key0 = densemap.insert(32);
+    let key1 = densemap.insert(64);
+    let key2 = densemap.insert(128);
+    assert_eq!(densemap.len(), 3);
+
+    assert_eq!(densemap.as_key_slice(), &[key0, key1, key2]);
+    assert_eq!(densemap.as_value_slice(), &[32, 64, 128]);
+
+    densemap
+        .as_value_mut_slice()
+        .iter_mut()
+        .for_each(|value| *value -= 1);
+    assert_eq!(densemap.as_value_slice(), &[31, 63, 127]);
+}
+
+#[test]
 fn test_iter() {
     let mut densemap = DenseMap::new();
     let key0 = densemap.insert(17);
