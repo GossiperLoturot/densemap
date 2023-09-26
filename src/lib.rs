@@ -53,6 +53,10 @@
 //! | slotmap::DenseSlotMap | 63.195μs | 62.308μs | 67.072μs | 5.2833μs |
 //! | densemap::DenseMap | 40.357μs | 24.969μs | 47.280μs | 3.6269μs |
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+extern crate alloc;
+
 pub mod densemap;
 
 #[doc(inline)]

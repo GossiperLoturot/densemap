@@ -10,6 +10,10 @@ license = "MIT"
 keywords = ["storage"]
 categories = ["data-structures"]
 
+[features]
+default = ["std"]
+std = []
+
 [dev-dependencies.criterion]
 version = "0.5"
 features = ["html_reports"]

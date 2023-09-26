@@ -1,4 +1,8 @@
-use std::{collections, fmt, iter, ops, slice, vec};
+use alloc::{
+    collections,
+    vec::{self, Vec},
+};
+use core::{fmt, iter, ops, slice};
 
 /// A key of dense map, represents a position within the dense map.
 ///
