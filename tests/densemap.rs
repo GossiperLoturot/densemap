@@ -1,6 +1,43 @@
 use densemap::DenseMap;
 
 #[test]
+fn test_key() {
+    let mut densemap = DenseMap::new();
+    let key0 = densemap.insert(11);
+    assert_eq!(key0.generation(), 0);
+    assert_eq!(key0.idx(), 0);
+
+    let key1 = densemap.insert(11);
+    assert_eq!(key1.generation(), 0);
+    assert_eq!(key1.idx(), 1);
+
+    densemap.remove(key0);
+    let key2 = densemap.insert(11);
+    assert_eq!(key2.generation(), 2);
+    assert_eq!(key2.idx(), 0);
+}
+
+#[test]
+fn test_pure() {
+    let mut densemap0 = DenseMap::new();
+    let mut densemap1 = DenseMap::new();
+
+    let key00 = densemap0.insert(11);
+    let key10 = densemap1.insert(32);
+    assert_eq!(key00, key10);
+
+    let key01 = densemap0.insert(11);
+    let key11 = densemap1.insert(32);
+    assert_eq!(key01, key11);
+
+    densemap0.remove(key00);
+    densemap1.remove(key10);
+    let key02 = densemap0.insert(11);
+    let key12 = densemap1.insert(32);
+    assert_eq!(key02, key12);
+}
+
+#[test]
 fn test_new() {
     let mut densemap = DenseMap::new();
     assert_eq!(densemap.capacity(), (0, 0));

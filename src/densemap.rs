@@ -25,6 +25,40 @@ pub struct Key {
     idx: u32,
 }
 
+impl Key {
+    /// Returns the key generation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// let key = densemap.insert(11);
+    /// assert_eq!(key.generation(), 0);
+    /// ```
+    #[inline]
+    pub fn generation(&self) -> u32 {
+        self.generation
+    }
+
+    /// Returns the key index.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// let key = densemap.insert(11);
+    /// assert_eq!(key.idx(), 0);
+    /// ```
+    #[inline]
+    pub fn idx(&self) -> u32 {
+        self.idx
+    }
+}
+
 /// An index of sparse layer and mode at the position.
 ///
 /// if `generation` is an even number, the key is in occupied mode, otherwise it is
