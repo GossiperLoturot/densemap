@@ -1,6 +1,43 @@
 use densemap::DenseMap;
 
 #[test]
+fn test_key() {
+    let mut densemap = DenseMap::new();
+    let key0 = densemap.insert(11);
+    assert_eq!(key0.generation(), 0);
+    assert_eq!(key0.idx(), 0);
+
+    let key1 = densemap.insert(11);
+    assert_eq!(key1.generation(), 0);
+    assert_eq!(key1.idx(), 1);
+
+    densemap.remove(key0);
+    let key2 = densemap.insert(11);
+    assert_eq!(key2.generation(), 2);
+    assert_eq!(key2.idx(), 0);
+}
+
+#[test]
+fn test_pure() {
+    let mut densemap0 = DenseMap::new();
+    let mut densemap1 = DenseMap::new();
+
+    let key00 = densemap0.insert(11);
+    let key10 = densemap1.insert(32);
+    assert_eq!(key00, key10);
+
+    let key01 = densemap0.insert(11);
+    let key11 = densemap1.insert(32);
+    assert_eq!(key01, key11);
+
+    densemap0.remove(key00);
+    densemap1.remove(key10);
+    let key02 = densemap0.insert(11);
+    let key12 = densemap1.insert(32);
+    assert_eq!(key02, key12);
+}
+
+#[test]
 fn test_new() {
     let mut densemap = DenseMap::new();
     assert_eq!(densemap.capacity(), (0, 0));
@@ -85,6 +122,24 @@ fn test_len_and_is_empty() {
 }
 
 #[test]
+fn test_slice() {
+    let mut densemap = DenseMap::new();
+    let key0 = densemap.insert(32);
+    let key1 = densemap.insert(64);
+    let key2 = densemap.insert(128);
+    assert_eq!(densemap.len(), 3);
+
+    assert_eq!(densemap.as_key_slice(), &[key0, key1, key2]);
+    assert_eq!(densemap.as_value_slice(), &[32, 64, 128]);
+
+    densemap
+        .as_value_mut_slice()
+        .iter_mut()
+        .for_each(|value| *value -= 1);
+    assert_eq!(densemap.as_value_slice(), &[31, 63, 127]);
+}
+
+#[test]
 fn test_iter() {
     let mut densemap = DenseMap::new();
     let key0 = densemap.insert(17);
@@ -122,7 +177,10 @@ fn test_iter_mut() {
     let key2 = densemap.insert(0);
     assert_eq!(densemap.len(), 3);
 
-    densemap.values_mut().for_each(|value| *value += 2);
+    let values = densemap.values_mut();
+    assert_eq!(values.len(), 3);
+    values.for_each(|value| *value += 2);
+
     let mut values = densemap.values();
     assert_eq!(values.len(), 3);
     assert_eq!(values.next(), Some(&8));
@@ -130,7 +188,10 @@ fn test_iter_mut() {
     assert_eq!(values.next(), Some(&2));
     assert_eq!(values.next(), None);
 
-    densemap.iter_mut().for_each(|(_, value)| *value += 2);
+    let iter = densemap.iter_mut();
+    assert_eq!(iter.len(), 3);
+    iter.for_each(|(_, value)| *value += 2);
+
     let mut iter = densemap.iter();
     assert_eq!(iter.len(), 3);
     assert_eq!(iter.next(), Some((&key0, &10)));
@@ -167,6 +228,56 @@ fn test_into_iter() {
     assert_eq!(iter.next(), Some((key1, 63)));
     assert_eq!(iter.next(), Some((key2, 3)));
     assert_eq!(iter.next(), None);
+}
+
+#[test]
+fn test_for() {
+    let mut densemap = DenseMap::new();
+    let key0 = densemap.insert(106);
+    let key1 = densemap.insert(17);
+    let key2 = densemap.insert(82);
+
+    for (&key, &value) in &densemap {
+        match key {
+            _ if key == key0 => assert_eq!(value, 106),
+            _ if key == key1 => assert_eq!(value, 17),
+            _ if key == key2 => assert_eq!(value, 82),
+            _ => unreachable!(),
+        }
+    }
+
+    for (_, value) in &mut densemap {
+        *value += 2;
+    }
+
+    for (key, value) in densemap {
+        match key {
+            _ if key == key0 => assert_eq!(value, 108),
+            _ if key == key1 => assert_eq!(value, 19),
+            _ if key == key2 => assert_eq!(value, 84),
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[test]
+fn test_iter_clone() {
+    let mut densemap = DenseMap::new();
+    densemap.insert(106);
+    densemap.insert(17);
+    densemap.insert(82);
+
+    let keys = densemap.keys();
+    let equality = Iterator::zip(keys.clone(), keys).all(|(key0, key1)| key0 == key1);
+    assert!(equality);
+
+    let values = densemap.values();
+    let equality = Iterator::zip(values.clone(), values).all(|(value0, value1)| value0 == value1);
+    assert!(equality);
+
+    let iter = densemap.iter();
+    let equality = Iterator::zip(iter.clone(), iter).all(|(entry0, entry1)| entry0 == entry1);
+    assert!(equality);
 }
 
 #[test]

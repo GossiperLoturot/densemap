@@ -25,6 +25,40 @@ pub struct Key {
     idx: u32,
 }
 
+impl Key {
+    /// Returns the key generation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// let key = densemap.insert(11);
+    /// assert_eq!(key.generation(), 0);
+    /// ```
+    #[inline]
+    pub fn generation(&self) -> u32 {
+        self.generation
+    }
+
+    /// Returns the key index.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// let key = densemap.insert(11);
+    /// assert_eq!(key.idx(), 0);
+    /// ```
+    #[inline]
+    pub fn idx(&self) -> u32 {
+        self.idx
+    }
+}
+
 /// An index of sparse layer and mode at the position.
 ///
 /// if `generation` is an even number, the key is in occupied mode, otherwise it is
@@ -271,6 +305,22 @@ impl<T> DenseMap<T> {
         }
     }
 
+    /// Extracts a slice containing the entire keys.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// densemap.insert(1);
+    /// let key = densemap.as_key_slice();
+    /// ```
+    #[inline]
+    pub fn as_key_slice(&self) -> &[Key] {
+        self.keys.as_slice()
+    }
+
     /// An iterator visiting all values in arbitrary order.
     /// The iterator element type is `&'a T`.
     ///
@@ -327,6 +377,38 @@ impl<T> DenseMap<T> {
         IntoValues {
             inner: self.values.into_iter(),
         }
+    }
+
+    /// Extracts a slice containing the entire value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// densemap.insert(1);
+    /// let key = densemap.as_value_slice();
+    /// ```
+    #[inline]
+    pub fn as_value_slice(&self) -> &[T] {
+        self.values.as_slice()
+    }
+
+    /// Extracts a mutable slice of the entire value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use densemap::DenseMap;
+    ///
+    /// let mut densemap = DenseMap::new();
+    /// densemap.insert(1);
+    /// let key = densemap.as_value_slice();
+    /// ```
+    #[inline]
+    pub fn as_value_mut_slice(&mut self) -> &mut [T] {
+        self.values.as_mut_slice()
     }
 
     /// An iterator visiting all key-value pairs in arbitrary order.
@@ -591,7 +673,7 @@ impl<T> DenseMap<T> {
             };
             self.next = entry.idx_or_next;
             entry.generation += 1;
-            entry.idx_or_next = self.values.len() as u32;
+            entry.idx_or_next = self.keys.len() as u32;
             self.keys.push(key);
             self.values.push(f(key));
             key
@@ -601,7 +683,7 @@ impl<T> DenseMap<T> {
             }
             let entry = SparseIdx {
                 generation: 0,
-                idx_or_next: self.values.len() as u32,
+                idx_or_next: self.keys.len() as u32,
             };
             let key = Key {
                 generation: 0,
@@ -654,7 +736,7 @@ impl<T> DenseMap<T> {
                 self.next = key.idx;
                 let key = self.keys.swap_remove(idx as usize);
                 let value = self.values.swap_remove(idx as usize);
-                if idx < self.values.len() as u32 {
+                if idx < self.keys.len() as u32 {
                     self.sparse_idx[self.keys[idx as usize].idx as usize].idx_or_next = idx;
                 }
                 return Some((key, value));
@@ -698,9 +780,9 @@ impl<T: fmt::Debug> fmt::Debug for DenseMap<T> {
     }
 }
 
-impl Default for DenseMap<()> {
+impl<T> Default for DenseMap<T> {
     #[inline]
-    fn default() -> DenseMap<()> {
+    fn default() -> DenseMap<T> {
         DenseMap::new()
     }
 }
@@ -818,12 +900,6 @@ impl<'a, T> Iterator for Drain<'a, T> {
         let value = self.inner_values.next()?;
         Some((key, value))
     }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner_keys.len();
-        (len, Some(len))
-    }
 }
 
 impl<T> ExactSizeIterator for Drain<'_, T> {
@@ -879,12 +955,6 @@ impl<'a> Iterator for Keys<'a> {
         let key = self.inner.next()?;
         Some(key)
     }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len();
-        (len, Some(len))
-    }
 }
 
 impl ExactSizeIterator for Keys<'_> {
@@ -930,12 +1000,6 @@ impl Iterator for IntoKeys {
     fn next(&mut self) -> Option<Key> {
         let key = self.inner.next()?;
         Some(key)
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len();
-        (len, Some(len))
     }
 }
 
@@ -992,12 +1056,6 @@ impl<'a, T> Iterator for Values<'a, T> {
         let value = self.inner.next()?;
         Some(value)
     }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len();
-        (len, Some(len))
-    }
 }
 
 impl<T> ExactSizeIterator for Values<'_, T> {
@@ -1044,12 +1102,6 @@ impl<'a, T> Iterator for ValuesMut<'a, T> {
         let value = self.inner.next()?;
         Some(value)
     }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len();
-        (len, Some(len))
-    }
 }
 
 impl<T> ExactSizeIterator for ValuesMut<'_, T> {
@@ -1095,12 +1147,6 @@ impl<T> Iterator for IntoValues<T> {
     fn next(&mut self) -> Option<T> {
         let value = self.inner.next()?;
         Some(value)
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len();
-        (len, Some(len))
     }
 }
 
@@ -1160,12 +1206,6 @@ impl<'a, T> Iterator for Iter<'a, T> {
         let value = self.inner_values.next()?;
         Some((key, value))
     }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner_keys.len();
-        (len, Some(len))
-    }
 }
 
 impl<T> ExactSizeIterator for Iter<'_, T> {
@@ -1216,12 +1256,6 @@ impl<'a, T> Iterator for IterMut<'a, T> {
         let value = self.inner_values.next()?;
         Some((key, value))
     }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner_keys.len();
-        (len, Some(len))
-    }
 }
 
 impl<T> ExactSizeIterator for IterMut<'_, T> {
@@ -1271,12 +1305,6 @@ impl<T> Iterator for IntoIter<T> {
         let key = self.inner_keys.next()?;
         let value = self.inner_values.next()?;
         Some((key, value))
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner_keys.len();
-        (len, Some(len))
     }
 }
 
