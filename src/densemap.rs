@@ -673,7 +673,7 @@ impl<T> DenseMap<T> {
             };
             self.next = entry.idx_or_next;
             entry.generation += 1;
-            entry.idx_or_next = self.values.len() as u32;
+            entry.idx_or_next = self.keys.len() as u32;
             self.keys.push(key);
             self.values.push(f(key));
             key
@@ -683,7 +683,7 @@ impl<T> DenseMap<T> {
             }
             let entry = SparseIdx {
                 generation: 0,
-                idx_or_next: self.values.len() as u32,
+                idx_or_next: self.keys.len() as u32,
             };
             let key = Key {
                 generation: 0,
@@ -736,7 +736,7 @@ impl<T> DenseMap<T> {
                 self.next = key.idx;
                 let key = self.keys.swap_remove(idx as usize);
                 let value = self.values.swap_remove(idx as usize);
-                if idx < self.values.len() as u32 {
+                if idx < self.keys.len() as u32 {
                     self.sparse_idx[self.keys[idx as usize].idx as usize].idx_or_next = idx;
                 }
                 return Some((key, value));
@@ -780,9 +780,9 @@ impl<T: fmt::Debug> fmt::Debug for DenseMap<T> {
     }
 }
 
-impl Default for DenseMap<()> {
+impl<T> Default for DenseMap<T> {
     #[inline]
-    fn default() -> DenseMap<()> {
+    fn default() -> DenseMap<T> {
         DenseMap::new()
     }
 }
@@ -900,12 +900,6 @@ impl<'a, T> Iterator for Drain<'a, T> {
         let value = self.inner_values.next()?;
         Some((key, value))
     }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner_keys.len();
-        (len, Some(len))
-    }
 }
 
 impl<T> ExactSizeIterator for Drain<'_, T> {
@@ -961,12 +955,6 @@ impl<'a> Iterator for Keys<'a> {
         let key = self.inner.next()?;
         Some(key)
     }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len();
-        (len, Some(len))
-    }
 }
 
 impl ExactSizeIterator for Keys<'_> {
@@ -1012,12 +1000,6 @@ impl Iterator for IntoKeys {
     fn next(&mut self) -> Option<Key> {
         let key = self.inner.next()?;
         Some(key)
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len();
-        (len, Some(len))
     }
 }
 
@@ -1074,12 +1056,6 @@ impl<'a, T> Iterator for Values<'a, T> {
         let value = self.inner.next()?;
         Some(value)
     }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len();
-        (len, Some(len))
-    }
 }
 
 impl<T> ExactSizeIterator for Values<'_, T> {
@@ -1126,12 +1102,6 @@ impl<'a, T> Iterator for ValuesMut<'a, T> {
         let value = self.inner.next()?;
         Some(value)
     }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len();
-        (len, Some(len))
-    }
 }
 
 impl<T> ExactSizeIterator for ValuesMut<'_, T> {
@@ -1177,12 +1147,6 @@ impl<T> Iterator for IntoValues<T> {
     fn next(&mut self) -> Option<T> {
         let value = self.inner.next()?;
         Some(value)
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner.len();
-        (len, Some(len))
     }
 }
 
@@ -1242,12 +1206,6 @@ impl<'a, T> Iterator for Iter<'a, T> {
         let value = self.inner_values.next()?;
         Some((key, value))
     }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner_keys.len();
-        (len, Some(len))
-    }
 }
 
 impl<T> ExactSizeIterator for Iter<'_, T> {
@@ -1298,12 +1256,6 @@ impl<'a, T> Iterator for IterMut<'a, T> {
         let value = self.inner_values.next()?;
         Some((key, value))
     }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner_keys.len();
-        (len, Some(len))
-    }
 }
 
 impl<T> ExactSizeIterator for IterMut<'_, T> {
@@ -1353,12 +1305,6 @@ impl<T> Iterator for IntoIter<T> {
         let key = self.inner_keys.next()?;
         let value = self.inner_values.next()?;
         Some((key, value))
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.inner_keys.len();
-        (len, Some(len))
     }
 }
 
