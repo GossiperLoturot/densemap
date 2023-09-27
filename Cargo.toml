@@ -1,6 +1,6 @@
 [package]
 name = "densemap"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["GossiperLoturot"]
 edition = "2021"
 description = "A collection data structure that is permanently accessible by unique keys and fast iterable."
