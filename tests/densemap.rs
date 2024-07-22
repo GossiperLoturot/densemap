@@ -4,17 +4,14 @@ use densemap::DenseMap;
 fn test_key() {
     let mut densemap = DenseMap::new();
     let key0 = densemap.insert(11);
-    assert_eq!(key0.generation(), 0);
-    assert_eq!(key0.idx(), 0);
+    assert_eq!(key0, 0);
 
     let key1 = densemap.insert(11);
-    assert_eq!(key1.generation(), 0);
-    assert_eq!(key1.idx(), 1);
+    assert_eq!(key1, 1);
 
     densemap.remove(key0);
     let key2 = densemap.insert(11);
-    assert_eq!(key2.generation(), 2);
-    assert_eq!(key2.idx(), 0);
+    assert_eq!(key2, 0);
 }
 
 #[test]

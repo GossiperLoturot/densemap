@@ -59,4 +59,4 @@ extern crate alloc;
 
 pub mod densemap;
 
-pub use densemap::{DenseMap, Key};
+pub use densemap::DenseMap;

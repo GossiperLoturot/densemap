@@ -4,76 +4,17 @@ use alloc::{
 };
 use core::{fmt, iter, ops, slice};
 
-/// A key of dense map, represents a position within the dense map.
-///
-/// # Examples
-///
-/// ```
-/// use densemap::DenseMap;
-///
-/// let mut densemap = DenseMap::new();
-/// let key = densemap.insert(0);
-/// assert_eq!(densemap.get(key), Some(&0));
-/// ```
-#[repr(align(8))]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Key {
-    /// An even number means occupied. An odd number means vacant.
-    generation: u32,
-    /// An index of sparse layer.
-    idx: u32,
-}
-
-impl Key {
-    /// Returns the key generation.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use densemap::DenseMap;
-    ///
-    /// let mut densemap = DenseMap::new();
-    /// let key = densemap.insert(11);
-    /// assert_eq!(key.generation(), 0);
-    /// ```
-    #[inline]
-    pub fn generation(&self) -> u32 {
-        self.generation
-    }
-
-    /// Returns the key index.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use densemap::DenseMap;
-    ///
-    /// let mut densemap = DenseMap::new();
-    /// let key = densemap.insert(11);
-    /// assert_eq!(key.idx(), 0);
-    /// ```
-    #[inline]
-    pub fn idx(&self) -> u32 {
-        self.idx
-    }
-}
-
 /// An index of sparse layer and mode at the position.
 ///
 /// if `generation` is an even number, the key is in occupied mode, otherwise it is
 /// in vacant mode. Occupied mode means that the correspondence between `idx_or_next` and
 /// the element in dense layer, which is pointed to by `idx_or_next`, are available. Vacant
 /// mode is other than occupied mode.
-#[repr(align(8))]
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-struct SparseIdx {
-    /// An even number means be in occupied mode. An odd number means be in vacant mode.
-    generation: u32,
-    /// In occupied mode, an index of dense layer. In vacant mode,
-    /// a next free index of sparse layer.
-    idx_or_next: u32,
+enum SparseIdx {
+    Vacant { next: Option<usize> },
+    Occupied { index: usize },
 }
 
 /// A contiguous array with sparse index, written as `DenseMap<T>`, short for 'dense map'.
@@ -93,12 +34,12 @@ struct SparseIdx {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DenseMap<T> {
     /// A next free index of sparse layer.
-    next: u32,
+    next: Option<usize>,
     /// A correspondence to dense layer from sparse layer.
-    sparse_idx: Vec<SparseIdx>,
+    entries: Vec<SparseIdx>,
 
     /// A correspondence to sparse layer from dense layer.
-    keys: Vec<Key>,
+    keys: Vec<usize>,
     values: Vec<T>,
 }
 
@@ -118,8 +59,8 @@ impl<T> DenseMap<T> {
     #[inline]
     pub const fn new() -> DenseMap<T> {
         DenseMap {
-            next: 0,
-            sparse_idx: Vec::new(),
+            next: None,
+            entries: Vec::new(),
             keys: Vec::new(),
             values: Vec::new(),
         }
@@ -144,8 +85,8 @@ impl<T> DenseMap<T> {
     #[inline]
     pub fn with_capacity(sparse_capacity: usize, dense_capacity: usize) -> DenseMap<T> {
         DenseMap {
-            next: 0,
-            sparse_idx: Vec::with_capacity(sparse_capacity),
+            next: None,
+            entries: Vec::with_capacity(sparse_capacity),
             keys: Vec::with_capacity(dense_capacity),
             values: Vec::with_capacity(dense_capacity),
         }
@@ -166,7 +107,7 @@ impl<T> DenseMap<T> {
     /// ```
     #[inline]
     pub fn capacity(&self) -> (usize, usize) {
-        let sparse = self.sparse_idx.capacity();
+        let sparse = self.entries.capacity();
         let dense = self.keys.capacity();
         (sparse, dense)
     }
@@ -187,7 +128,7 @@ impl<T> DenseMap<T> {
     /// ```
     #[inline]
     pub fn reserve(&mut self, sparse_additional: usize, dense_additional: usize) {
-        self.sparse_idx.reserve(sparse_additional);
+        self.entries.reserve(sparse_additional);
         self.keys.reserve(dense_additional);
         self.values.reserve(dense_additional);
     }
@@ -212,7 +153,7 @@ impl<T> DenseMap<T> {
         sparse_additional: usize,
         dense_additional: usize,
     ) -> Result<(), collections::TryReserveError> {
-        self.sparse_idx.try_reserve(sparse_additional)?;
+        self.entries.try_reserve(sparse_additional)?;
         self.keys.try_reserve(dense_additional)?;
         self.values.try_reserve(dense_additional)?;
         Ok(())
@@ -236,7 +177,7 @@ impl<T> DenseMap<T> {
     /// ```
     #[inline]
     pub fn shrink_to_fit(&mut self) {
-        self.sparse_idx.shrink_to_fit();
+        self.entries.shrink_to_fit();
         self.keys.shrink_to_fit();
         self.values.shrink_to_fit();
     }
@@ -261,7 +202,7 @@ impl<T> DenseMap<T> {
     /// ```
     #[inline]
     pub fn shrink_to(&mut self, sparse_capacity: usize, dense_capacity: usize) {
-        self.sparse_idx.shrink_to(sparse_capacity);
+        self.entries.shrink_to(sparse_capacity);
         self.keys.shrink_to(dense_capacity);
         self.values.shrink_to(dense_capacity);
     }
@@ -317,7 +258,7 @@ impl<T> DenseMap<T> {
     /// let key = densemap.as_key_slice();
     /// ```
     #[inline]
-    pub fn as_key_slice(&self) -> &[Key] {
+    pub fn as_key_slice(&self) -> &[usize] {
         self.keys.as_slice()
     }
 
@@ -502,8 +443,8 @@ impl<T> DenseMap<T> {
     /// let iter = densemap.drain();
     #[inline]
     pub fn drain(&mut self) -> Drain<'_, T> {
-        self.next = 0;
-        self.sparse_idx.clear();
+        self.next = None;
+        self.entries.clear();
         Drain {
             inner_keys: self.keys.drain(..),
             inner_values: self.values.drain(..),
@@ -524,8 +465,8 @@ impl<T> DenseMap<T> {
     /// ```
     #[inline]
     pub fn clear(&mut self) {
-        self.next = 0;
-        self.sparse_idx.clear();
+        self.next = None;
+        self.entries.clear();
         self.keys.clear();
         self.values.clear();
     }
@@ -543,14 +484,16 @@ impl<T> DenseMap<T> {
     /// let key = densemap.insert(1);
     /// assert!(densemap.contain_key(key));
     /// ```
-    pub fn contain_key(&self, key: Key) -> bool {
-        if let Some(entry) = self.sparse_idx.get(key.idx as usize) {
-            if key.generation == entry.generation {
-                return true;
-            }
-        }
+    pub fn contain_key(&self, key: usize) -> bool {
+        let entry = match self.entries.get(key) {
+            Some(entry) => entry,
+            None => return false,
+        };
 
-        false
+        match entry {
+            SparseIdx::Occupied { .. } => true,
+            SparseIdx::Vacant { .. } => false,
+        }
     }
 
     /// Returns a reference to the value corresponding to the key.
@@ -565,7 +508,7 @@ impl<T> DenseMap<T> {
     /// assert_eq!(densemap.get(key), Some(&3));
     /// ```
     #[inline]
-    pub fn get(&self, key: Key) -> Option<&T> {
+    pub fn get(&self, key: usize) -> Option<&T> {
         self.get_key_value(key).map(|(_, value)| value)
     }
 
@@ -580,16 +523,20 @@ impl<T> DenseMap<T> {
     /// let key = densemap.insert(3);
     /// let (key, value) = densemap.get_key_value(key).unwrap();
     /// ```
-    pub fn get_key_value(&self, key: Key) -> Option<(&Key, &T)> {
-        if let Some(entry) = self.sparse_idx.get(key.idx as usize) {
-            if key.generation == entry.generation {
-                let key = &self.keys[entry.idx_or_next as usize];
-                let value = &self.values[entry.idx_or_next as usize];
-                return Some((key, value));
-            }
-        }
+    pub fn get_key_value(&self, key: usize) -> Option<(&usize, &T)> {
+        let entry = match self.entries.get(key) {
+            Some(entry) => entry,
+            None => return None,
+        };
 
-        None
+        let index = *match entry {
+            SparseIdx::Occupied { index } => index,
+            SparseIdx::Vacant { .. } => return None,
+        };
+
+        let key = &self.keys[index];
+        let value = &self.values[index];
+        Some((key, value))
     }
 
     /// Returns a mutable reference to the value corresponding to the key.
@@ -608,15 +555,19 @@ impl<T> DenseMap<T> {
     ///
     /// assert_eq!(densemap.get(key), Some(&24));
     /// ```
-    pub fn get_mut(&mut self, key: Key) -> Option<&mut T> {
-        if let Some(entry) = self.sparse_idx.get(key.idx as usize) {
-            if key.generation == entry.generation {
-                let value = &mut self.values[entry.idx_or_next as usize];
-                return Some(value);
-            }
-        }
+    pub fn get_mut(&mut self, key: usize) -> Option<&mut T> {
+        let entry = match self.entries.get(key) {
+            Some(entry) => entry,
+            None => return None,
+        };
 
-        None
+        let index = *match entry {
+            SparseIdx::Occupied { index } => index,
+            SparseIdx::Vacant { .. } => return None,
+        };
+
+        let value = &mut self.values[index];
+        return Some(value);
     }
 
     /// Inserts an element to the back of collection and returns key as stable identity.
@@ -636,7 +587,7 @@ impl<T> DenseMap<T> {
     /// assert_eq!(densemap.get(key), Some(&3));
     /// ```
     #[inline]
-    pub fn insert(&mut self, value: T) -> Key {
+    pub fn insert(&mut self, value: T) -> usize {
         self.insert_with_key(|_| value)
     }
 
@@ -658,42 +609,39 @@ impl<T> DenseMap<T> {
     /// let key = densemap.insert_with_key(|key| (key, 3));
     /// assert_eq!(densemap.get(key), Some(&(key, 3)));
     /// ```
-    pub fn insert_with_key<F>(&mut self, f: F) -> Key
+    pub fn insert_with_key<F>(&mut self, f: F) -> usize
     where
-        F: FnOnce(Key) -> T,
+        F: FnOnce(usize) -> T,
     {
-        if self.next < self.sparse_idx.len() as u32 {
-            let entry = self.sparse_idx.get_mut(self.next as usize).unwrap();
-            if entry.generation == u32::MAX {
-                panic!("A generation of element in the sparse layer overflow");
-            }
-            let key = Key {
-                generation: entry.generation + 1,
-                idx: self.next,
+        if let Some(key) = self.next {
+            let entry = match self.entries.get_mut(key) {
+                Some(entry) => entry,
+                None => unreachable!(),
             };
-            self.next = entry.idx_or_next;
-            entry.generation += 1;
-            entry.idx_or_next = self.keys.len() as u32;
+
+            let next = *match entry {
+                SparseIdx::Occupied { .. } => unreachable!(),
+                SparseIdx::Vacant { next } => next,
+            };
+
+            self.next = next;
+
+            *entry = SparseIdx::Occupied {
+                index: self.keys.len(),
+            };
             self.keys.push(key);
             self.values.push(f(key));
             key
         } else {
-            if self.next == u32::MAX {
-                panic!("An index of element in the sparse layer overflow");
-            }
-            let entry = SparseIdx {
-                generation: 0,
-                idx_or_next: self.keys.len() as u32,
+            let key = self.entries.len();
+
+            let entry = SparseIdx::Occupied {
+                index: self.keys.len(),
             };
-            let key = Key {
-                generation: 0,
-                idx: self.sparse_idx.len() as u32,
-            };
-            // self.next += 1; // slower than below increment
-            self.sparse_idx.push(entry);
+
+            self.entries.push(entry);
             self.keys.push(key);
             self.values.push(f(key));
-            self.next += 1; // faster than above increment
             key
         }
     }
@@ -711,7 +659,7 @@ impl<T> DenseMap<T> {
     /// assert_eq!(densemap.remove(key), Some(3));
     /// ```
     #[inline]
-    pub fn remove(&mut self, key: Key) -> Option<T> {
+    pub fn remove(&mut self, key: usize) -> Option<T> {
         self.remove_entry(key).map(|(_, value)| value)
     }
 
@@ -727,23 +675,26 @@ impl<T> DenseMap<T> {
     /// let key = densemap.insert(3);
     /// let (key, value) = densemap.remove_entry(key).unwrap();
     /// ```
-    pub fn remove_entry(&mut self, key: Key) -> Option<(Key, T)> {
-        if let Some(entry) = self.sparse_idx.get_mut(key.idx as usize) {
-            if entry.generation == key.generation {
-                let idx = entry.idx_or_next;
-                entry.generation += 1;
-                entry.idx_or_next = self.next;
-                self.next = key.idx;
-                let key = self.keys.swap_remove(idx as usize);
-                let value = self.values.swap_remove(idx as usize);
-                if idx < self.keys.len() as u32 {
-                    self.sparse_idx[self.keys[idx as usize].idx as usize].idx_or_next = idx;
-                }
-                return Some((key, value));
-            }
-        }
+    pub fn remove_entry(&mut self, key: usize) -> Option<(usize, T)> {
+        let entry = match self.entries.get_mut(key) {
+            Some(entry) => entry,
+            None => return None,
+        };
 
-        None
+        *entry = SparseIdx::Vacant { next: self.next };
+
+        let index = *match entry {
+            SparseIdx::Occupied { index } => index,
+            SparseIdx::Vacant { .. } => return None,
+        };
+
+        self.next = Some(key);
+        let key = self.keys.swap_remove(index);
+        let value = self.values.swap_remove(index);
+
+        self.entries[self.keys[index]] = SparseIdx::Occupied { index };
+
+        Some((key, value))
     }
 }
 
@@ -752,7 +703,7 @@ impl<T: Clone> Clone for DenseMap<T> {
     fn clone(&self) -> Self {
         Self {
             next: self.next,
-            sparse_idx: self.sparse_idx.clone(),
+            entries: self.entries.clone(),
             keys: self.keys.clone(),
             values: self.values.clone(),
         }
@@ -787,24 +738,24 @@ impl<T> Default for DenseMap<T> {
     }
 }
 
-impl<T> ops::Index<Key> for DenseMap<T> {
+impl<T> ops::Index<usize> for DenseMap<T> {
     type Output = T;
 
     #[inline]
-    fn index(&self, key: Key) -> &T {
+    fn index(&self, key: usize) -> &T {
         self.get(key).expect("no entry found for key")
     }
 }
 
-impl<T> ops::IndexMut<Key> for DenseMap<T> {
+impl<T> ops::IndexMut<usize> for DenseMap<T> {
     #[inline]
-    fn index_mut(&mut self, key: Key) -> &mut T {
+    fn index_mut(&mut self, key: usize) -> &mut T {
         self.get_mut(key).expect("no entry found for key")
     }
 }
 
 impl<'a, T> IntoIterator for &'a DenseMap<T> {
-    type Item = (&'a Key, &'a T);
+    type Item = (&'a usize, &'a T);
     type IntoIter = Iter<'a, T>;
 
     #[inline]
@@ -814,7 +765,7 @@ impl<'a, T> IntoIterator for &'a DenseMap<T> {
 }
 
 impl<'a, T> IntoIterator for &'a mut DenseMap<T> {
-    type Item = (&'a Key, &'a mut T);
+    type Item = (&'a usize, &'a mut T);
     type IntoIter = IterMut<'a, T>;
 
     #[inline]
@@ -824,7 +775,7 @@ impl<'a, T> IntoIterator for &'a mut DenseMap<T> {
 }
 
 impl<T> IntoIterator for DenseMap<T> {
-    type Item = (Key, T);
+    type Item = (usize, T);
     type IntoIter = IntoIter<T>;
 
     #[inline]
@@ -878,7 +829,7 @@ impl<T, const N: usize> From<[T; N]> for DenseMap<T> {
 /// let drain = densemap.drain();
 /// ```
 pub struct Drain<'a, T> {
-    inner_keys: vec::Drain<'a, Key>,
+    inner_keys: vec::Drain<'a, usize>,
     inner_values: vec::Drain<'a, T>,
 }
 
@@ -892,10 +843,10 @@ impl<T: fmt::Debug> fmt::Debug for Drain<'_, T> {
 }
 
 impl<'a, T> Iterator for Drain<'a, T> {
-    type Item = (Key, T);
+    type Item = (usize, T);
 
     #[inline]
-    fn next(&mut self) -> Option<(Key, T)> {
+    fn next(&mut self) -> Option<(usize, T)> {
         let key = self.inner_keys.next()?;
         let value = self.inner_values.next()?;
         Some((key, value))
@@ -928,7 +879,7 @@ impl<T> iter::FusedIterator for Drain<'_, T> {}
 /// let keys = densemap.keys();
 /// ```
 pub struct Keys<'a> {
-    inner: slice::Iter<'a, Key>,
+    inner: slice::Iter<'a, usize>,
 }
 
 impl Clone for Keys<'_> {
@@ -948,10 +899,10 @@ impl fmt::Debug for Keys<'_> {
 }
 
 impl<'a> Iterator for Keys<'a> {
-    type Item = &'a Key;
+    type Item = &'a usize;
 
     #[inline]
-    fn next(&mut self) -> Option<&'a Key> {
+    fn next(&mut self) -> Option<&'a usize> {
         let key = self.inner.next()?;
         Some(key)
     }
@@ -983,7 +934,7 @@ impl iter::FusedIterator for Keys<'_> {}
 /// let keys = densemap.into_keys();
 /// ```
 pub struct IntoKeys {
-    inner: vec::IntoIter<Key>,
+    inner: vec::IntoIter<usize>,
 }
 
 impl fmt::Debug for IntoKeys {
@@ -994,10 +945,10 @@ impl fmt::Debug for IntoKeys {
 }
 
 impl Iterator for IntoKeys {
-    type Item = Key;
+    type Item = usize;
 
     #[inline]
-    fn next(&mut self) -> Option<Key> {
+    fn next(&mut self) -> Option<usize> {
         let key = self.inner.next()?;
         Some(key)
     }
@@ -1176,7 +1127,7 @@ impl<T> iter::FusedIterator for IntoValues<T> {}
 /// let iter = densemap.iter();
 /// ```
 pub struct Iter<'a, T> {
-    inner_keys: slice::Iter<'a, Key>,
+    inner_keys: slice::Iter<'a, usize>,
     inner_values: slice::Iter<'a, T>,
 }
 
@@ -1198,10 +1149,10 @@ impl<T: fmt::Debug> fmt::Debug for Iter<'_, T> {
 }
 
 impl<'a, T> Iterator for Iter<'a, T> {
-    type Item = (&'a Key, &'a T);
+    type Item = (&'a usize, &'a T);
 
     #[inline]
-    fn next(&mut self) -> Option<(&'a Key, &'a T)> {
+    fn next(&mut self) -> Option<(&'a usize, &'a T)> {
         let key = self.inner_keys.next()?;
         let value = self.inner_values.next()?;
         Some((key, value))
@@ -1234,7 +1185,7 @@ impl<T> iter::FusedIterator for Iter<'_, T> {}
 /// let iter = densemap.iter_mut();
 /// ```
 pub struct IterMut<'a, T> {
-    inner_keys: slice::Iter<'a, Key>,
+    inner_keys: slice::Iter<'a, usize>,
     inner_values: slice::IterMut<'a, T>,
 }
 
@@ -1248,10 +1199,10 @@ impl<T: fmt::Debug> fmt::Debug for IterMut<'_, T> {
 }
 
 impl<'a, T> Iterator for IterMut<'a, T> {
-    type Item = (&'a Key, &'a mut T);
+    type Item = (&'a usize, &'a mut T);
 
     #[inline]
-    fn next(&mut self) -> Option<(&'a Key, &'a mut T)> {
+    fn next(&mut self) -> Option<(&'a usize, &'a mut T)> {
         let key = self.inner_keys.next()?;
         let value = self.inner_values.next()?;
         Some((key, value))
@@ -1284,7 +1235,7 @@ impl<T> iter::FusedIterator for IterMut<'_, T> {}
 /// let iter = densemap.into_iter();
 /// ```
 pub struct IntoIter<T> {
-    inner_keys: vec::IntoIter<Key>,
+    inner_keys: vec::IntoIter<usize>,
     inner_values: vec::IntoIter<T>,
 }
 
@@ -1298,7 +1249,7 @@ impl<T: fmt::Debug> fmt::Debug for IntoIter<T> {
 }
 
 impl<T> Iterator for IntoIter<T> {
-    type Item = (Key, T);
+    type Item = (usize, T);
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
