@@ -8,7 +8,7 @@
 //! # Examples
 //!
 //! ```
-//! use densemap::{DenseMap, Key};
+//! use densemap::DenseMap;
 //!
 //! // Creates a new dense map and inserts some elements.
 //! let mut densemap = DenseMap::new();
@@ -21,9 +21,6 @@
 //! // Removes an element.
 //! assert_eq!(densemap.remove(key_of_alice), Some("alice"));
 //! let key_of_charlie = densemap.insert("charlie");
-//!
-//! // Keys are unique and permanently accessible.
-//! assert_eq!(densemap.get(key_of_alice), None);
 //!
 //! // Iterates all elements.
 //! for value in densemap.values() {

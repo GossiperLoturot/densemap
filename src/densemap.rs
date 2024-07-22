@@ -13,8 +13,8 @@ use core::{fmt, iter, ops, slice};
 #[derive(Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum SparseIdx {
-    Vacant { next: Option<usize> },
-    Occupied { index: usize },
+    Vacant { next: Option<u32> },
+    Occupied { index: u32 },
 }
 
 /// A contiguous array with sparse index, written as `DenseMap<T>`, short for 'dense map'.
@@ -34,12 +34,12 @@ enum SparseIdx {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DenseMap<T> {
     /// A next free index of sparse layer.
-    next: Option<usize>,
+    next: Option<u32>,
     /// A correspondence to dense layer from sparse layer.
     entries: Vec<SparseIdx>,
 
     /// A correspondence to sparse layer from dense layer.
-    keys: Vec<usize>,
+    keys: Vec<u32>,
     values: Vec<T>,
 }
 
@@ -258,7 +258,7 @@ impl<T> DenseMap<T> {
     /// let key = densemap.as_key_slice();
     /// ```
     #[inline]
-    pub fn as_key_slice(&self) -> &[usize] {
+    pub fn as_key_slice(&self) -> &[u32] {
         self.keys.as_slice()
     }
 
@@ -484,8 +484,8 @@ impl<T> DenseMap<T> {
     /// let key = densemap.insert(1);
     /// assert!(densemap.contain_key(key));
     /// ```
-    pub fn contain_key(&self, key: usize) -> bool {
-        let entry = match self.entries.get(key) {
+    pub fn contain_key(&self, key: u32) -> bool {
+        let entry = match self.entries.get(key as usize) {
             Some(entry) => entry,
             None => return false,
         };
@@ -508,7 +508,7 @@ impl<T> DenseMap<T> {
     /// assert_eq!(densemap.get(key), Some(&3));
     /// ```
     #[inline]
-    pub fn get(&self, key: usize) -> Option<&T> {
+    pub fn get(&self, key: u32) -> Option<&T> {
         self.get_key_value(key).map(|(_, value)| value)
     }
 
@@ -523,8 +523,8 @@ impl<T> DenseMap<T> {
     /// let key = densemap.insert(3);
     /// let (key, value) = densemap.get_key_value(key).unwrap();
     /// ```
-    pub fn get_key_value(&self, key: usize) -> Option<(&usize, &T)> {
-        let entry = match self.entries.get(key) {
+    pub fn get_key_value(&self, key: u32) -> Option<(&u32, &T)> {
+        let entry = match self.entries.get(key as usize) {
             Some(entry) => entry,
             None => return None,
         };
@@ -534,8 +534,8 @@ impl<T> DenseMap<T> {
             SparseIdx::Vacant { .. } => return None,
         };
 
-        let key = &self.keys[index];
-        let value = &self.values[index];
+        let key = &self.keys[index as usize];
+        let value = &self.values[index as usize];
         Some((key, value))
     }
 
@@ -555,8 +555,8 @@ impl<T> DenseMap<T> {
     ///
     /// assert_eq!(densemap.get(key), Some(&24));
     /// ```
-    pub fn get_mut(&mut self, key: usize) -> Option<&mut T> {
-        let entry = match self.entries.get(key) {
+    pub fn get_mut(&mut self, key: u32) -> Option<&mut T> {
+        let entry = match self.entries.get(key as usize) {
             Some(entry) => entry,
             None => return None,
         };
@@ -566,8 +566,8 @@ impl<T> DenseMap<T> {
             SparseIdx::Vacant { .. } => return None,
         };
 
-        let value = &mut self.values[index];
-        return Some(value);
+        let value = &mut self.values[index as usize];
+        Some(value)
     }
 
     /// Inserts an element to the back of collection and returns key as stable identity.
@@ -587,7 +587,7 @@ impl<T> DenseMap<T> {
     /// assert_eq!(densemap.get(key), Some(&3));
     /// ```
     #[inline]
-    pub fn insert(&mut self, value: T) -> usize {
+    pub fn insert(&mut self, value: T) -> u32 {
         self.insert_with_key(|_| value)
     }
 
@@ -609,12 +609,12 @@ impl<T> DenseMap<T> {
     /// let key = densemap.insert_with_key(|key| (key, 3));
     /// assert_eq!(densemap.get(key), Some(&(key, 3)));
     /// ```
-    pub fn insert_with_key<F>(&mut self, f: F) -> usize
+    pub fn insert_with_key<F>(&mut self, f: F) -> u32
     where
-        F: FnOnce(usize) -> T,
+        F: FnOnce(u32) -> T,
     {
         if let Some(key) = self.next {
-            let entry = match self.entries.get_mut(key) {
+            let entry = match self.entries.get_mut(key as usize) {
                 Some(entry) => entry,
                 None => unreachable!(),
             };
@@ -627,16 +627,20 @@ impl<T> DenseMap<T> {
             self.next = next;
 
             *entry = SparseIdx::Occupied {
-                index: self.keys.len(),
+                index: self.keys.len() as u32,
             };
             self.keys.push(key);
             self.values.push(f(key));
             key
         } else {
-            let key = self.entries.len();
+            if self.entries.len() > u32::MAX as usize {
+                panic!("capacity overflow");
+            }
+
+            let key = self.entries.len() as u32;
 
             let entry = SparseIdx::Occupied {
-                index: self.keys.len(),
+                index: self.keys.len() as u32,
             };
 
             self.entries.push(entry);
@@ -659,7 +663,7 @@ impl<T> DenseMap<T> {
     /// assert_eq!(densemap.remove(key), Some(3));
     /// ```
     #[inline]
-    pub fn remove(&mut self, key: usize) -> Option<T> {
+    pub fn remove(&mut self, key: u32) -> Option<T> {
         self.remove_entry(key).map(|(_, value)| value)
     }
 
@@ -675,24 +679,26 @@ impl<T> DenseMap<T> {
     /// let key = densemap.insert(3);
     /// let (key, value) = densemap.remove_entry(key).unwrap();
     /// ```
-    pub fn remove_entry(&mut self, key: usize) -> Option<(usize, T)> {
-        let entry = match self.entries.get_mut(key) {
+    pub fn remove_entry(&mut self, key: u32) -> Option<(u32, T)> {
+        let entry = match self.entries.get_mut(key as usize) {
             Some(entry) => entry,
             None => return None,
         };
-
-        *entry = SparseIdx::Vacant { next: self.next };
 
         let index = *match entry {
             SparseIdx::Occupied { index } => index,
             SparseIdx::Vacant { .. } => return None,
         };
 
-        self.next = Some(key);
-        let key = self.keys.swap_remove(index);
-        let value = self.values.swap_remove(index);
+        *entry = SparseIdx::Vacant { next: self.next };
 
-        self.entries[self.keys[index]] = SparseIdx::Occupied { index };
+        self.next = Some(key);
+        let key = self.keys.swap_remove(index as usize);
+        let value = self.values.swap_remove(index as usize);
+
+        if index < self.keys.len() as u32 {
+            self.entries[self.keys[index as usize] as usize] = SparseIdx::Occupied { index };
+        }
 
         Some((key, value))
     }
@@ -738,24 +744,24 @@ impl<T> Default for DenseMap<T> {
     }
 }
 
-impl<T> ops::Index<usize> for DenseMap<T> {
+impl<T> ops::Index<u32> for DenseMap<T> {
     type Output = T;
 
     #[inline]
-    fn index(&self, key: usize) -> &T {
+    fn index(&self, key: u32) -> &T {
         self.get(key).expect("no entry found for key")
     }
 }
 
-impl<T> ops::IndexMut<usize> for DenseMap<T> {
+impl<T> ops::IndexMut<u32> for DenseMap<T> {
     #[inline]
-    fn index_mut(&mut self, key: usize) -> &mut T {
+    fn index_mut(&mut self, key: u32) -> &mut T {
         self.get_mut(key).expect("no entry found for key")
     }
 }
 
 impl<'a, T> IntoIterator for &'a DenseMap<T> {
-    type Item = (&'a usize, &'a T);
+    type Item = (&'a u32, &'a T);
     type IntoIter = Iter<'a, T>;
 
     #[inline]
@@ -765,7 +771,7 @@ impl<'a, T> IntoIterator for &'a DenseMap<T> {
 }
 
 impl<'a, T> IntoIterator for &'a mut DenseMap<T> {
-    type Item = (&'a usize, &'a mut T);
+    type Item = (&'a u32, &'a mut T);
     type IntoIter = IterMut<'a, T>;
 
     #[inline]
@@ -775,7 +781,7 @@ impl<'a, T> IntoIterator for &'a mut DenseMap<T> {
 }
 
 impl<T> IntoIterator for DenseMap<T> {
-    type Item = (usize, T);
+    type Item = (u32, T);
     type IntoIter = IntoIter<T>;
 
     #[inline]
@@ -829,7 +835,7 @@ impl<T, const N: usize> From<[T; N]> for DenseMap<T> {
 /// let drain = densemap.drain();
 /// ```
 pub struct Drain<'a, T> {
-    inner_keys: vec::Drain<'a, usize>,
+    inner_keys: vec::Drain<'a, u32>,
     inner_values: vec::Drain<'a, T>,
 }
 
@@ -843,10 +849,10 @@ impl<T: fmt::Debug> fmt::Debug for Drain<'_, T> {
 }
 
 impl<'a, T> Iterator for Drain<'a, T> {
-    type Item = (usize, T);
+    type Item = (u32, T);
 
     #[inline]
-    fn next(&mut self) -> Option<(usize, T)> {
+    fn next(&mut self) -> Option<(u32, T)> {
         let key = self.inner_keys.next()?;
         let value = self.inner_values.next()?;
         Some((key, value))
@@ -879,7 +885,7 @@ impl<T> iter::FusedIterator for Drain<'_, T> {}
 /// let keys = densemap.keys();
 /// ```
 pub struct Keys<'a> {
-    inner: slice::Iter<'a, usize>,
+    inner: slice::Iter<'a, u32>,
 }
 
 impl Clone for Keys<'_> {
@@ -899,10 +905,10 @@ impl fmt::Debug for Keys<'_> {
 }
 
 impl<'a> Iterator for Keys<'a> {
-    type Item = &'a usize;
+    type Item = &'a u32;
 
     #[inline]
-    fn next(&mut self) -> Option<&'a usize> {
+    fn next(&mut self) -> Option<&'a u32> {
         let key = self.inner.next()?;
         Some(key)
     }
@@ -934,7 +940,7 @@ impl iter::FusedIterator for Keys<'_> {}
 /// let keys = densemap.into_keys();
 /// ```
 pub struct IntoKeys {
-    inner: vec::IntoIter<usize>,
+    inner: vec::IntoIter<u32>,
 }
 
 impl fmt::Debug for IntoKeys {
@@ -945,10 +951,10 @@ impl fmt::Debug for IntoKeys {
 }
 
 impl Iterator for IntoKeys {
-    type Item = usize;
+    type Item = u32;
 
     #[inline]
-    fn next(&mut self) -> Option<usize> {
+    fn next(&mut self) -> Option<u32> {
         let key = self.inner.next()?;
         Some(key)
     }
@@ -1127,7 +1133,7 @@ impl<T> iter::FusedIterator for IntoValues<T> {}
 /// let iter = densemap.iter();
 /// ```
 pub struct Iter<'a, T> {
-    inner_keys: slice::Iter<'a, usize>,
+    inner_keys: slice::Iter<'a, u32>,
     inner_values: slice::Iter<'a, T>,
 }
 
@@ -1149,10 +1155,10 @@ impl<T: fmt::Debug> fmt::Debug for Iter<'_, T> {
 }
 
 impl<'a, T> Iterator for Iter<'a, T> {
-    type Item = (&'a usize, &'a T);
+    type Item = (&'a u32, &'a T);
 
     #[inline]
-    fn next(&mut self) -> Option<(&'a usize, &'a T)> {
+    fn next(&mut self) -> Option<(&'a u32, &'a T)> {
         let key = self.inner_keys.next()?;
         let value = self.inner_values.next()?;
         Some((key, value))
@@ -1185,7 +1191,7 @@ impl<T> iter::FusedIterator for Iter<'_, T> {}
 /// let iter = densemap.iter_mut();
 /// ```
 pub struct IterMut<'a, T> {
-    inner_keys: slice::Iter<'a, usize>,
+    inner_keys: slice::Iter<'a, u32>,
     inner_values: slice::IterMut<'a, T>,
 }
 
@@ -1199,10 +1205,10 @@ impl<T: fmt::Debug> fmt::Debug for IterMut<'_, T> {
 }
 
 impl<'a, T> Iterator for IterMut<'a, T> {
-    type Item = (&'a usize, &'a mut T);
+    type Item = (&'a u32, &'a mut T);
 
     #[inline]
-    fn next(&mut self) -> Option<(&'a usize, &'a mut T)> {
+    fn next(&mut self) -> Option<(&'a u32, &'a mut T)> {
         let key = self.inner_keys.next()?;
         let value = self.inner_values.next()?;
         Some((key, value))
@@ -1235,7 +1241,7 @@ impl<T> iter::FusedIterator for IterMut<'_, T> {}
 /// let iter = densemap.into_iter();
 /// ```
 pub struct IntoIter<T> {
-    inner_keys: vec::IntoIter<usize>,
+    inner_keys: vec::IntoIter<u32>,
     inner_values: vec::IntoIter<T>,
 }
 
@@ -1249,7 +1255,7 @@ impl<T: fmt::Debug> fmt::Debug for IntoIter<T> {
 }
 
 impl<T> Iterator for IntoIter<T> {
-    type Item = (usize, T);
+    type Item = (u32, T);
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
